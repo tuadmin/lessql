@@ -4,6 +4,10 @@ namespace LessQL;
 
 class Schema {
 
+	function __construct( $db ) {
+		$this->db = $db;
+	}
+
 	/**
 	 * Get primary key of a table, may be array for compound keys
 	 *
@@ -275,6 +279,9 @@ class Schema {
 	}
 
 	//
+
+	/** @var Database */
+	protected $db;
 
 	/** @var array */
 	protected $primary = array();

@@ -19,21 +19,20 @@ class Fragment {
 	function prepare( $params = null ) {
 		if ( $params ) return $this->bind( $params )->prepare();
 
-		return $this->db()->prepare( $this );
+		return $this->db->prepared( $this );
 	}
 
 	function exec( $params = null ) {
 		if ( $params ) return $this->bind( $params )->exec();
 
-		return $this->context->exec( $this );
+		$resolved = $this->resolve();
+		$pdoStatement = $this->db->pdo()->prepare( (string) $resolved );
+		$pdoStatement->execute( $resolved->params() );
+		return $this->result( $pdoStatement );
 	}
 
 	function result( $source ) {
 		return $this->db->result( $this, $source );
-	}
-
-	function row( $data ) {
-		return $this->db->row( $this, $data );
 	}
 
 	/**

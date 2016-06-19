@@ -5,8 +5,9 @@ namespace LessQL;
 class Prepared {
 
 	function __construct( $statement ) {
-		$this->statement = $statement;
-		$this->pdoStatement = $this->statement->pdo()->prepare( (string) $statement );
+		$this->statement = $statement->resolve();
+		$this->pdoStatement = $this->statement->db()->pdo()
+			->prepare( (string) $statement );
 	}
 
 	function exec( $params = array() ) {

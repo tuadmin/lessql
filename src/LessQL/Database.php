@@ -21,6 +21,24 @@ class Database {
 		if ( @$options[ 'identifierDelimiter' ] ) $this->identifierDelimiter = $options[ 'identifierDelimiter' ];
 		$this->onQuery = @$options[ 'onQuery' ];
 
+		$this->schema = new Schema( $this );
+
+	}
+
+	/**
+	 * Return wrapped PDO
+	 * @return \PDO
+	 */
+	function pdo() {
+		return $this->pdo;
+	}
+
+	/**
+	 * Return schema manager
+	 * @return \PDO
+	 */
+	function schema() {
+		return $this->schema;
 	}
 
 	/**
@@ -79,6 +97,7 @@ class Database {
 
 	/**
 	 * Create an SQL statement, optionally with bound params
+	 *
 	 * @param string $name
 	 * @param array $properties
 	 * @param Result|null $result
@@ -86,6 +105,13 @@ class Database {
 	 */
 	function fragment( $sql, $params = array() ) {
 		return new Fragment( $this, $sql, $params );
+	}
+
+	/**
+	 * Create a prepared statement from a statement
+	 */
+	function prepared( $statement ) {
+		return new Prepared( $statement );
 	}
 
 	/**
@@ -129,7 +155,7 @@ class Database {
 	 * @return Statement
 	 */
 	function prepare( $statement, $params = array() ) {
-		return $this->statement( $statement, $params )->prepare();
+		return $this->fragment( $statement, $params )->prepare();
 	}
 
 	/**
@@ -139,7 +165,7 @@ class Database {
 	 * @return Statement
 	 */
 	function exec( $statement, $params = array() ) {
-		return $this->statement( $statement, $params )->exec();
+		return $this->fragment( $statement, $params )->exec();
 	}
 
 	/**
@@ -689,10 +715,16 @@ class Database {
 
 	//
 
+	/** @var \PDO */
+	protected $pdo;
+
 	/** @var string */
 	protected $identifierDelimiter = '`';
 
 	/** @var null|callable */
 	protected $onQuery;
+
+	/** @var Schema */
+	protected $schema;
 
 }

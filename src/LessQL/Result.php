@@ -18,7 +18,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 			$this->affected = $source->rowCount();
 		}
 
-		$this->rows = array_map( array( $this->statement, 'createRow' ), $this->rows );
+		$this->rows = array_map( array( $this, 'row' ), $this->rows );
 		$this->count = count( $this->rows );
 
 		if ( $this->statement->hasInsertId() ) {
@@ -34,6 +34,12 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	function insertId() {
 		return $this->insertId;
+	}
+
+	function row( $data ) {
+		return $this->statement->db()->row( $data, array(
+			'result' => $this
+		) );
 	}
 
 	//

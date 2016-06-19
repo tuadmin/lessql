@@ -1,12 +1,13 @@
 <?php
 
 require_once 'vendor/autoload.php';
+require_once 'BaseTest.php';
 
-class FragmentTest extends PHPUnit_Framework_TestCase {
+class FragmentTest extends BaseTest {
 
 	function testEquals() {
 
-		$db = new \LessQL\Database( new \PDO( 'sqlite:tests/shop.sqlite3' ) );
+		$db = $this->db();
 
 		$a = $db->fragment( 'CREATE TABLE test (id INT, name VARCHAR)' );
 		$b = $db->fragment( ' create /* evil */  table TEST ( Id iNT ,  namE   VARCHAR )   -- bad' );
@@ -19,7 +20,7 @@ class FragmentTest extends PHPUnit_Framework_TestCase {
 
 	function testResolve() {
 
-		$db = new \LessQL\Database( new \PDO( 'sqlite:tests/shop.sqlite3' ) );
+		$db = $this->db();
 
 		$f = $db->fragment( 'SELECT * FROM &table,&tables WHERE &conds OR foo=:bar OR x in (:lol)', array(
 			'table' => 'post',
@@ -32,6 +33,20 @@ class FragmentTest extends PHPUnit_Framework_TestCase {
 			"SELECT * FROM `post`,`a`, `b` WHERE  WHERE `foo` = 'bar' AND x is null OR foo=:bar OR x in ('1', '2', '3')",
 			(string) $f->resolve()
 		);
+
+	}
+
+	function testTokens() {
+
+	}
+
+	function testPrepare() {
+
+	}
+
+	function testExec() {
+
+		$db = $this->db();
 
 	}
 

@@ -7,7 +7,7 @@ class RowTest extends BaseTest {
 
 	function testAccess() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
 
@@ -54,7 +54,7 @@ class RowTest extends BaseTest {
 
 	function testClean() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
@@ -75,7 +75,7 @@ class RowTest extends BaseTest {
 	 */
 	function testCleanEx() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
 		$row->setClean();
@@ -84,7 +84,7 @@ class RowTest extends BaseTest {
 
 	function testId() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
@@ -113,7 +113,7 @@ class RowTest extends BaseTest {
 
 	function testCompoundId() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'categorization' );
 
@@ -139,7 +139,7 @@ class RowTest extends BaseTest {
 
 	function testData() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'post', array(
 			'title' => 'Fantasy Movie Review',
@@ -165,7 +165,7 @@ class RowTest extends BaseTest {
 
 	function testDelete() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
@@ -182,7 +182,7 @@ class RowTest extends BaseTest {
 
 	function testSave() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'post', array(
 			'title' => 'Fantasy Movie Review',
@@ -223,7 +223,7 @@ class RowTest extends BaseTest {
 
 	function testJsonSerialize() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$data = array(
 			'title' => 'Fantasy Movie Review',
@@ -255,7 +255,7 @@ class RowTest extends BaseTest {
 
 	function testReferenced() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$post = $db->post( 11 );
 
@@ -277,7 +277,7 @@ class RowTest extends BaseTest {
 
 	function testReadmeExample() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$category = $db->category( 21 );
 
@@ -311,7 +311,7 @@ class RowTest extends BaseTest {
 
 	function testEmptyRow() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'dummy' );
 
@@ -325,7 +325,7 @@ class RowTest extends BaseTest {
 
 	function testHasProperty() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->createRow( 'dummy' );
 

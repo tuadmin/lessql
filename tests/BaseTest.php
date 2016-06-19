@@ -7,16 +7,14 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	// static
 
 	static $pdo;
-	static $db;
 
 	static function setUpBeforeClass() {
 
 		// do this only once
-		if ( isset( self::$db ) ) return;
+		if ( isset( self::$pdo ) ) return;
 
-		// pdo
+		// database
 		self::pdo();
-		self::lessql();
 		self::schema();
 		self::reset();
 
@@ -46,21 +44,6 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	static function driver() {
 
 		return self::$pdo->getAttribute( \PDO::ATTR_DRIVER_NAME );
-
-	}
-
-	static function lessql() {
-
-		if ( self::$db ) return self::$db;
-
-		self::$db = new \LessQL\Database( self::pdo() );
-
-		self::$db->setAlias( 'author', 'user' );
-		self::$db->setAlias( 'editor', 'user' );
-		self::$db->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
-
-		self::$db->setAlias( 'edit_post', 'post' );
-		self::$db->setBackReference( 'user', 'edit_post', 'editor_id' );
 
 	}
 
@@ -211,26 +194,21 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	static function clearTransaction() {
 
 		try {
-
 			self::$pdo->rollBack();
-
 		} catch ( \Exception $ex ) {
-
 			// ignore
-
 		}
 
 	}
 
 	static function query( $q ) {
-
 		return self::$pdo->query( $q );
-
 	}
 
 	static function quoteIdentifier( $id ) {
 
-		return self::$db->quoteIdentifier( $id );
+		$db = new \LessQL\Database( self::pdo() );
+		return $db->quoteIdentifier( $id );
 
 	}
 
@@ -240,19 +218,33 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function setUp() {
 
-		self::$db->setQueryCallback( array( $this, 'onQuery' ) );
 		$this->queries = array();
 		$this->params = array();
 
 	}
 
+	function db( $identifierDelimiter = '`' ) {
+
+		$db = new \LessQL\Database( self::pdo(), array(
+			'onQuery' => array( $this, 'onQuery' ),
+			'identifierDelimiter' => $identifierDelimiter
+		) );
+
+		$schema = $db->schema();
+		$schema->setAlias( 'author', 'user' );
+		$schema->setAlias( 'editor', 'user' );
+		$schema->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
+
+		$schema->setAlias( 'edit_post', 'post' );
+		$schema->setBackReference( 'user', 'edit_post', 'editor_id' );
+
+		return $db;
+
+	}
+
 	function onQuery( $query, $params ) {
 
-		if ( substr( $query, 0, 6 ) !== 'SELECT' ) {
-
-			$this->needReset = true;
-
-		}
+		if ( substr( $query, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
 
 		$this->queries[] = str_replace( '"', '`', $query );
 		$this->params[] = $params;
@@ -262,12 +254,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	function tearDown() {
 
 		self::clearTransaction();
-
-		if ( $this->needReset ) {
-
-			self::reset();
-
-		}
+		if ( $this->needReset ) self::reset();
 
 	}
 

@@ -6,9 +6,7 @@ class MigrationTest extends PHPUnit_Framework_TestCase {
 
 	function testHasProperty() {
 
-		$db = new \LessQL\Database( new \PDO( 'sqlite:tests/shop.sqlite3' ) );
-
-		$migration = $db->migration( 'tests/migration.php' );
+		$migration = $this->db()->migration( 'tests/migration.php' );
 		$migration->apply( "DROP TABLE lol" );
 		$migration->apply( "CREATE TABLE lol (id INT)" );
 

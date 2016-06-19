@@ -7,7 +7,7 @@ class ResultTest extends BaseTest {
 
 	function testPrimary() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$a = $db->user( 2 );
 		$b = $db->user( 3 );
@@ -25,7 +25,7 @@ class ResultTest extends BaseTest {
 
 	function testVia() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$post = $db->post( 12 );
 
@@ -50,7 +50,7 @@ class ResultTest extends BaseTest {
 
 	function testInsert() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 		$db->dummy()->insert( array() ); // does nothing
@@ -73,7 +73,7 @@ class ResultTest extends BaseTest {
 
 	function testInsertPrepared() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 		$db->dummy()->insert( array(
@@ -99,7 +99,7 @@ class ResultTest extends BaseTest {
 
 	function testInsertBatch() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		// not supported by sqlite < 3.7, need try/catch
 
@@ -127,7 +127,7 @@ class ResultTest extends BaseTest {
 
 	function testUpdate() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 
@@ -169,7 +169,7 @@ class ResultTest extends BaseTest {
 
 	function testUpdatePrimary() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 
@@ -186,7 +186,7 @@ class ResultTest extends BaseTest {
 
 	function testDelete() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 
@@ -226,7 +226,7 @@ class ResultTest extends BaseTest {
 
 	function testDeletePrimary() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 
@@ -243,7 +243,7 @@ class ResultTest extends BaseTest {
 
 	function testDeleteComposite() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->begin();
 
@@ -260,7 +260,7 @@ class ResultTest extends BaseTest {
 
 	function testWhere() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->dummy()->where( 'test', null )->fetch();
 		$db->dummy()->where( 'test', 31 )->fetch();
@@ -306,7 +306,7 @@ class ResultTest extends BaseTest {
 
 	function testOrderBy() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->dummy()->orderBy( 'id', 'DESC' )->orderBy( 'test' )->fetch();
 
@@ -318,7 +318,7 @@ class ResultTest extends BaseTest {
 
 	function testLimit() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->dummy()->limit( 3 )->fetch();
 		$db->dummy()->limit( 3, 10 )->fetch();
@@ -332,7 +332,7 @@ class ResultTest extends BaseTest {
 
 	function testSelect() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->dummy()->select( 'test' )->fetch();
 		$db->dummy()->select( 'test', 'id' )->fetch();
@@ -346,7 +346,7 @@ class ResultTest extends BaseTest {
 
 	function testKeys() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$a = array();
 
@@ -392,7 +392,7 @@ class ResultTest extends BaseTest {
 
 	function testTraversal() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$posts = array();
 
@@ -459,7 +459,7 @@ class ResultTest extends BaseTest {
 
 	function testBackReference() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		foreach ( $db->user() as $user ) {
 
@@ -476,7 +476,7 @@ class ResultTest extends BaseTest {
 
 	function testCountResultIsAnInteger() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$expected = count( $db->user()->fetchAll() );
 		$result = $db->user()->count();
@@ -489,7 +489,7 @@ class ResultTest extends BaseTest {
 		// only supported for PHP >= 5.4.0
 		if ( version_compare( phpversion(), '5.4.0', '<' ) ) return;
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$json = json_encode( $db->user()->select( 'id' ) );
 		$expected = '[{"id":"1"},{"id":"2"},{"id":"3"}]';
@@ -503,7 +503,7 @@ class ResultTest extends BaseTest {
 	 */
 	function testBadReference() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$db->user()->post()->fetchAll();
 
@@ -511,7 +511,7 @@ class ResultTest extends BaseTest {
 
 	function testCreateRow() {
 
-		$db = self::$db;
+		$db = $this->db();
 
 		$row = $db->user()->createRow( array( 'name' => 'foo' ) );
 
