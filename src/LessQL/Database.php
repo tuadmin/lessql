@@ -26,19 +26,16 @@ class Database {
 	}
 
 	/**
-	 * Return wrapped PDO
-	 * @return \PDO
+	 * Returns an SQL fragment
+	 *
+	 * Examples:
+	 * $db( "SELECT * FROM post" )
+	 *
+	 * @param string|Fragment $sql
+	 * @param array $params
 	 */
-	function pdo() {
-		return $this->pdo;
-	}
-
-	/**
-	 * Return schema manager
-	 * @return \PDO
-	 */
-	function schema() {
-		return $this->schema;
+	function __invoke( $sql, $params = array() ) {
+		return $this->createFragment( $sql, $params );
 	}
 
 	/**
@@ -54,6 +51,8 @@ class Database {
 	 * @return Result|Row|null
 	 */
 	function __call( $name, $args ) {
+
+		var_dump( $name );
 
 		array_unshift( $args, $name );
 		return call_user_func_array( array( $this, 'table' ), $args );
@@ -73,23 +72,27 @@ class Database {
 		// ignore List suffix
 		$name = preg_replace( '/List$/', '', $name );
 
+		$select = $this( "SELECT &select FROM &table &where &order &limit", array(
+			'select' => $this( '*' ),
+			'table' => $name,
+			'where' => $this( '' ),
+			'order' => $this( '' ),
+			'limit' => $this( '' )
+		) );
+
 		if ( $id !== null ) {
 
-			$result = $this->createResult( $this, $name );
-
 			if ( !is_array( $id ) ) {
-
-				$table = $this->getAlias( $name );
-				$primary = $this->getPrimary( $table );
+				$table = $this->getSchema()->getAlias( $name );
+				$primary = $this->getSchema()->getPrimary( $table );
 				$id = array( $primary => $id );
-
 			}
 
-			return $result->where( $id )->fetch();
+			return $select->where( $id )->fetch();
 
 		}
 
-		return $this->result( $this, $name );
+		return $select;
 
 	}
 
@@ -103,14 +106,18 @@ class Database {
 	 * @param Result|null $result
 	 * @return Fragment
 	 */
-	function fragment( $sql, $params = array() ) {
+	function createFragment( $sql, $params = array() ) {
+		if ( $sql instanceof Fragment ) return $sql->bind( $params );
 		return new Fragment( $this, $sql, $params );
 	}
 
 	/**
 	 * Create a prepared statement from a statement
+	 *
+	 * @param Statement $statement
+	 * @return Prepared
 	 */
-	function prepared( $statement ) {
+	function createPrepared( $statement ) {
 		return new Prepared( $statement );
 	}
 
@@ -123,8 +130,8 @@ class Database {
 	 * @param Result|null $result
 	 * @return Row
 	 */
-	function row( $name, $properties = array(), $result = null ) {
-		return new Row( $this, $name, $properties, $result );
+	function createRow( $properties = array(), $options = array() ) {
+		return new Row( $properties, $options );
 	}
 
 	/**
@@ -135,14 +142,14 @@ class Database {
 	 * @param string $name
 	 * @return Result
 	 */
-	function result( $statement, $source ) {
+	function createResult( $statement, $source ) {
 		return new Result( $statement, $source );
 	}
 
 	/**
 	 * Create a migration
 	 */
-	function migration( $path ) {
+	function createMigration( $path ) {
 		return new Migration( $this, $path );
 	}
 
@@ -155,7 +162,7 @@ class Database {
 	 * @return Statement
 	 */
 	function prepare( $statement, $params = array() ) {
-		return $this->fragment( $statement, $params )->prepare();
+		return $this( $statement, $params )->prepare();
 	}
 
 	/**
@@ -165,7 +172,7 @@ class Database {
 	 * @return Statement
 	 */
 	function exec( $statement, $params = array() ) {
-		return $this->fragment( $statement, $params )->exec();
+		return $this( $statement, $params )->exec();
 	}
 
 	/**
@@ -239,7 +246,7 @@ class Database {
 		$table = $this->rewriteTable( $table );
 		$query .= " FROM " . $this->quoteIdentifier( $table );
 
-		$query .= $this->suffix( $options[ 'where' ], $options[ 'orderBy' ], $options[ 'limitCount' ], $options[ 'limitOffset' ] );
+		$query .= $this->getSuffix( $options[ 'where' ], $options[ 'orderBy' ], $options[ 'limitCount' ], $options[ 'limitOffset' ] );
 
 		$this->onQuery( $query, $options[ 'params' ] );
 
@@ -294,11 +301,11 @@ class Database {
 	 */
 	protected function insertPrepared( $table, $rows ) {
 
-		$columns = $this->columns( $rows );
+		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return;
 
 		$prepared = $this->insertHead( $table, $columns )
-			->bind( array( 'suffix' => $this->fragment( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" ) ) )
+			->bind( array( 'suffix' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" ) ) )
 			->prepare();
 
 		foreach ( $rows as $row ) {
@@ -306,7 +313,7 @@ class Database {
 			$values = array();
 
 			foreach ( $columns as $column ) {
-				$values[] = (string) $this->format( @$row[ $column ] );
+				$values[] = (string) $this->formatValue( @$row[ $column ] );
 			}
 
 			$statement->exec( $values );
@@ -326,11 +333,11 @@ class Database {
 	 */
 	protected function insertBatch( $table, $rows ) {
 
-		$columns = $this->columns( $rows );
+		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return;
 
 		$insert = $this->insertHead( $table, $columns );
-		$lists = $this->valueLists( $rows, $columns );
+		$lists = $this->getValueLists( $rows, $columns );
 		$insert->append( implode( ", ", $lists ) )->exec();
 
 	}
@@ -344,11 +351,11 @@ class Database {
 	 */
 	protected function insertDefault( $table, $rows ) {
 
-		$columns = $this->columns( $rows );
+		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return;
 
 		$insert = $this->insertHead( $table, $columns );
-		$lists = $this->valueLists( $rows, $columns );
+		$lists = $this->getValueLists( $rows, $columns );
 
 		foreach ( $lists as $list ) {
 			$statement = $insert->append( $list )->exec();
@@ -379,7 +386,7 @@ class Database {
 	 * @param array $rows
 	 * @return array
 	 */
-	protected function columns( $rows ) {
+	protected function getColumns( $rows ) {
 
 		$columns = array();
 
@@ -400,14 +407,14 @@ class Database {
 	 * @param array $columns
 	 * @return array
 	 */
-	protected function valueLists( $rows, $columns ) {
+	protected function getValueLists( $rows, $columns ) {
 
 		$lists = array();
 
 		foreach ( $rows as $row ) {
 			$values = array();
 			foreach ( $columns as $column ) {
-				$values[] = $this->quote( @$row[ $column ] );
+				$values[] = $this->quoteValue( @$row[ $column ] );
 			}
 			$lists[] = "( " . implode( ", ", $values ) . " )";
 		}
@@ -434,7 +441,7 @@ class Database {
 		$set = array();
 
 		foreach ( $data as $column => $value ) {
-			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quote( $value );
+			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
 		}
 
 		if ( !is_array( $where ) ) $where = array( $where );
@@ -442,7 +449,7 @@ class Database {
 
 		$params[ 'table' ] = $this->rewriteTable( $table );
 
-		return $this->statement( "UPDATE &table SET " . implode( ", ", $set ) . $this->suffix( $where ), $params )->exec();
+		return $this->statement( "UPDATE &table SET " . implode( ", ", $set ) . $this->getSuffix( $where ), $params )->exec();
 
 	}
 
@@ -463,7 +470,7 @@ class Database {
 
 		$params[ 'table' ] = $this->rewriteTable( $table );
 
-		return $this->exec( "DELETE FROM &table" . $this->suffix( $where ), $params );
+		return $this->exec( "DELETE FROM &table" . $this->getSuffix( $where ), $params );
 
 	}
 
@@ -478,7 +485,7 @@ class Database {
 	 * @param int|null $limitOffset
 	 * @return string
 	 */
-	function suffix( $where, $orderBy = array(), $limitCount = null, $limitOffset = null ) {
+	function getSuffix( $where, $orderBy = array(), $limitCount = null, $limitOffset = null ) {
 
 		$suffix = "";
 
@@ -504,7 +511,7 @@ class Database {
 			}
 		}
 
-		return $this->fragment( $suffix );
+		return $this( $suffix );
 
 	}
 
@@ -540,9 +547,9 @@ class Database {
 			$value = $value[ 0 ];
 
 			if ( $value === null ) {
-				return $this->fragment( $column . " IS" . $not . " NULL" );
+				return $this( $column . " IS" . $not . " NULL" );
 			} else {
-				return $this->fragment( $column . " " . $bang . "= " . $this->quote( $value ) );
+				return $this( $column . " " . $bang . "= " . $this->quoteValue( $value ) );
 			}
 
 		} else if ( count( $value ) > 1 ) {
@@ -557,7 +564,7 @@ class Database {
 				if ( $v === null ) {
 					$null = true;
 				} else {
-					$values[] = $this->quote( $v );
+					$values[] = $this->quoteValue( $v );
 				}
 
 			}
@@ -572,11 +579,11 @@ class Database {
 				$clauses[] = $column . " IS" . $not . " NULL";
 			}
 
-			return $this->fragment( implode( $or, $clauses ) );
+			return $this( implode( $or, $clauses ) );
 
 		}
 
-		return $this->fragment( $novalue );
+		return $this( $novalue );
 
 	}
 
@@ -596,15 +603,15 @@ class Database {
 	/**
 	 * Build a SET instruction, e.g. for UPDATE
 	 */
-	function set( $data ) {
+	function getSet( $data ) {
 
 		$set = array();
 
 		foreach ( $data as $column => $value ) {
-			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quote( $value );
+			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
 		}
 
-		return $this->fragment( implode( ", ", $set ) );
+		return $this( implode( ", ", $set ) );
 
 	}
 
@@ -614,13 +621,13 @@ class Database {
 	 * @param mixed $value
 	 * @return string
 	 */
-	function quote( $value ) {
+	function quoteValue( $value ) {
 
 		if ( is_array( $value ) ) {
-			return implode( ", ", array_map( array( $this, 'quote' ), $value ) );
+			return implode( ", ", array_map( array( $this, 'quoteValue' ), $value ) );
 		}
 
-		$value = $this->format( $value );
+		$value = $this->formatValue( $value );
 
 		if ( $value === null ) return "NULL";
 		if ( $value === false ) return "'0'";
@@ -635,7 +642,7 @@ class Database {
 			return "'" . sprintf( "%F", $value ) . "'";
 		}
 
-		return $this->fragment( $this->pdo->quote( $value ) );
+		return $this( $this->pdo->quote( $value ) );
 
 	}
 
@@ -645,7 +652,7 @@ class Database {
 	 * @param mixed $value
 	 * @return string
 	 */
-	function format( $value ) {
+	function formatValue( $value ) {
 
 		if ( $value instanceof \DateTime ) {
 			return $value->format( "Y-m-d H:i:s" );
@@ -680,7 +687,7 @@ class Database {
 			$identifier
 		);
 
-		return $this->fragment( implode( ".", $identifier ) );
+		return $this( implode( ".", $identifier ) );
 
 	}
 
@@ -691,7 +698,7 @@ class Database {
 	 *
 	 * @return string
 	 */
-	function identifierDelimiter() {
+	function getIdentifierDelimiter() {
 
 		return $this->identifierDelimiter;
 
@@ -711,6 +718,24 @@ class Database {
 			call_user_func( $this->onQuery, $query, $params );
 		}
 
+	}
+
+	//
+
+	/**
+	 * Return wrapped PDO
+	 * @return \PDO
+	 */
+	function getPdo() {
+		return $this->pdo;
+	}
+
+	/**
+	 * Return schema manager
+	 * @return \PDO
+	 */
+	function getSchema() {
+		return $this->schema;
 	}
 
 	//

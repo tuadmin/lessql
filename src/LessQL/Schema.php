@@ -17,15 +17,11 @@ class Schema {
 	 * @return string|array
 	 */
 	function getPrimary( $table ) {
-
 		if ( isset( $this->primary[ $table ] ) ) {
-
 			return $this->primary[ $table ];
-
 		}
 
 		return 'id';
-
 	}
 
 	/**
@@ -38,7 +34,6 @@ class Schema {
 	 * @return $this
 	 */
 	function setPrimary( $table, $key ) {
-
 		$this->primary[ $table ] = $key;
 
 		// compound keys are never auto-generated,
@@ -46,15 +41,12 @@ class Schema {
 		if ( is_array( $key ) ) {
 
 			foreach ( $key as $k ) {
-
 				$this->setRequired( $table, $k );
-
 			}
 
 		}
 
 		return $this;
-
 	}
 
 	/**
@@ -69,15 +61,11 @@ class Schema {
 	 * @return string
 	 */
 	function getReference( $table, $name ) {
-
 		if ( isset( $this->references[ $table ][ $name ] ) ) {
-
 			return $this->references[ $table ][ $name ];
-
 		}
 
 		return $name . '_id';
-
 	}
 
 	/**
@@ -89,11 +77,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setReference( $table, $name, $key ) {
-
 		$this->references[ $table ][ $name ] = $key;
-
 		return $this;
-
 	}
 
 	/**
@@ -108,15 +93,11 @@ class Schema {
 	 * @return string
 	 */
 	function getBackReference( $table, $name ) {
-
 		if ( isset( $this->backReferences[ $table ][ $name ] ) ) {
-
 			return $this->backReferences[ $table ][ $name ];
-
 		}
 
 		return $table . '_id';
-
 	}
 
 	/**
@@ -128,11 +109,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setBackReference( $table, $name, $key ) {
-
 		$this->backReferences[ $table ][ $name ] = $key;
-
 		return $this;
-
 	}
 
 	/**
@@ -142,9 +120,7 @@ class Schema {
 	 * @return string
 	 */
 	function getAlias( $alias ) {
-
 		return isset( $this->aliases[ $alias ] ) ? $this->aliases[ $alias ] : $alias;
-
 	}
 
 	/**
@@ -155,11 +131,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setAlias( $alias, $table ) {
-
 		$this->aliases[ $alias ] = $table;
-
 		return $this;
-
 	}
 
 	/**
@@ -170,9 +143,7 @@ class Schema {
 	 * @return bool
 	 */
 	function isRequired( $table, $column ) {
-
 		return isset( $this->required[ $table ][ $column ] );
-
 	}
 
 	/**
@@ -182,9 +153,7 @@ class Schema {
 	 * @return array
 	 */
 	function getRequired( $table ) {
-
 		return isset( $this->required[ $table ] ) ? $this->required[ $table ] : array();
-
 	}
 
 	/**
@@ -197,11 +166,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setRequired( $table, $column ) {
-
 		$this->required[ $table ][ $column ] = true;
-
 		return $this;
-
 	}
 
 	/**
@@ -215,9 +181,7 @@ class Schema {
 	function getSequence( $table ) {
 
 		if ( isset( $this->sequences[ $table ] ) ) {
-
 			return $this->sequences[ $table ];
-
 		}
 
 		$primary = $this->getPrimary( $table );
@@ -240,7 +204,6 @@ class Schema {
 	function setSequence( $table, $sequence ) {
 
 		$this->sequences[ $table ] = $sequence;
-
 		return $this;
 
 	}
@@ -252,15 +215,11 @@ class Schema {
 	 * @return string
 	 */
 	function rewriteTable( $table ) {
-
 		if ( is_callable( $this->rewrite ) ) {
-
 			return call_user_func( $this->rewrite, $table );
-
 		}
 
 		return $table;
-
 	}
 
 	/**
@@ -271,11 +230,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setRewrite( $rewrite ) {
-
 		$this->rewrite = $rewrite;
-
 		return $this;
-
 	}
 
 	//

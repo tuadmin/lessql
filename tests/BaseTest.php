@@ -230,7 +230,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 			'identifierDelimiter' => $identifierDelimiter
 		) );
 
-		$schema = $db->schema();
+		$schema = $db->getSchema();
 		$schema->setAlias( 'author', 'user' );
 		$schema->setAlias( 'editor', 'user' );
 		$schema->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );

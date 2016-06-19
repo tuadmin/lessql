@@ -3,25 +3,32 @@
 namespace LessQL;
 
 /**
- * Represents a row of a SELECT statement
+ * Represents a row of an SQL statement
  */
 class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
 	 * Constructor
-	 * Use $db->createRow() instead
+	 * Use $db->row() instead
 	 *
-	 * @param Database $db
-	 * @param string $name
-	 * @param array $properties
+	 * @param array $properties Associative row data, may include referenced rows
 	 * @param Result|null $result
 	 */
-	function __construct( $properties = array(), $options = array() ) {
+	function __construct( $tableName, $properties = array(), $options = array() ) {
 
-		$this->_context = $context;
+		if ( @$options[ 'statement' ] ) $this->_statement = $options[ 'statement' ];
+		if ( @$options[ 'table' ] ) $this->_table = $options[ 'table' ];
+		if ( @$options[ 'db' ] ) $this->_db = $options[ 'db' ];
 
 		$this->setData( $properties );
 
+	}
+
+	/**
+	 * Return statement associated with this row, if any
+	 */
+	function getStatement() {
+		return $this->_statement;
 	}
 
 	/**
@@ -61,7 +68,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		if ( is_array( $value ) ) {
 
-			$name = preg_replace( '/List$/', '', $column );
+			$name = preg_replace( '/List$|_list$/', '', $column );
 			$table = $this->getDatabase()->getAlias( $name );
 
 			if ( $name === $column ) { // row
@@ -190,15 +197,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		$data = array();
 
 		foreach ( $this->_properties as $column => $value ) {
-
-			if ( $value instanceof Row || is_array( $value ) ) {
-
-				continue;
-
-			}
-
+			if ( $value instanceof Row || is_array( $value ) ) continue;
 			$data[ $column ] = $value;
-
 		}
 
 		return $data;
@@ -214,9 +214,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function setData( $data ) {
 
 		foreach ( $data as $column => $value ) {
-
 			$this->__set( $column, $value );
-
 		}
 
 		return $this;
@@ -229,9 +227,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return string|array
 	 */
 	function getOriginalId() {
-
 		return $this->_originalId;
-
 	}
 
 	/**
@@ -246,9 +242,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		foreach ( $this->_modified as $column => $value ) {
 
 			if ( $value instanceof Row || is_array( $value ) ) {
-
 				continue;
-
 			}
 
 			$modified[ $column ] = $value;
@@ -285,9 +279,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 					$idCondition = $this->getOriginalId();
 
 					if ( !is_array( $idCondition ) ) {
-
 						$idCondition = array( $primary => $idCondition );
-
 					}
 
 					$db->table( $table )
@@ -302,11 +294,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 						->insert( $this->getData() );
 
 					if ( !is_array( $primary ) && !isset( $this[ $primary ] ) ) {
-
 						$id = $db->lastInsertId( $db->getSequence( $table ) );
-
 						if ( isset( $id ) ) $this[ $primary ] = $id;
-
 					}
 
 					$this->setClean();
@@ -382,9 +371,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			} else if ( is_array( $value ) ) {
 
 				foreach ( $value as $row ) {
-
 					$row->listRows( $list );
-
 				}
 
 			}
@@ -439,9 +426,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 				$key = $db->getBackReference( $this->getTable(), $column );
 
 				foreach ( $value as $row ) {
-
 					$row->{ $key } = $id;
-
 				}
 
 			}
@@ -465,9 +450,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		foreach ( $required as $column => $true ) {
 
 			if ( !isset( $this[ $column ] ) ) {
-
 				$missing[] = $column;
-
 			}
 
 		}
@@ -484,9 +467,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return $this
 	 */
 	function update( $data, $recursive = true ) {
-
 		return $this->setData( $data )->save( $recursive );
-
 	}
 
 	/**
@@ -526,9 +507,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return bool
 	 */
 	function exists() {
-
 		return $this->_originalId !== null;
-
 	}
 
 	/**
@@ -537,9 +516,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return bool
 	 */
 	function isClean() {
-
 		return empty( $this->_modified );
-
 	}
 
 	/**
@@ -552,9 +529,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		$id = $this->getId();
 
 		if ( $id === null ) {
-
 			throw new \LogicException( 'Cannot set Row "clean" without id' );
-
 		}
 
 		$this->_originalId = $id;
@@ -570,84 +545,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return $this
 	 */
 	function setDirty() {
-
 		$this->_modified = $this->_properties; // copy...
-
 		return $this;
-
-	}
-
-	/**
-	 * Get root result or row
-	 *
-	 * @return Result|Row
-	 */
-	function getRoot() {
-
-		$result = $this->getResult();
-
-		if ( $result ) return $result->getRoot();
-
-		return $this;
-
-	}
-
-	/**
-	 * Get value from cache
-	 *
-	 * @param $key
-	 * @return mixed
-	 */
-	function getCache( $key ) {
-
-		return isset( $this->_cache[ $key ] ) ? $this->_cache[ $key ] : null;
-
-	}
-
-	/**
-	 * Set cache value
-	 *
-	 * @param string $key
-	 * @param mixed $value
-	 */
-	function setCache( $key, $value ) {
-
-		$this->_cache[ $key ] = $value;
-
-	}
-
-	/**
-	 * Get column, used by result if row is parent
-	 *
-	 * @param string $key
-	 * @return array
-	 */
-	function getLocalKeys( $key ) {
-
-		if ( isset( $this[ $key ] ) ) {
-
-			return array( $this[ $key ] );
-
-		}
-
-		return array();
-
-	}
-
-	/**
-	 * Get global keys of parent result, or column if row is root
-	 *
-	 * @param string $key
-	 * @return array
-	 */
-	function getGlobalKeys( $key ) {
-
-		$result = $this->getResult();
-
-		if ( $result ) return $result->getGlobalKeys( $key );
-
-		return $this->getLocalKeys( $key );
-
 	}
 
 	/**
@@ -656,20 +555,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return Database
 	 */
 	function getDatabase() {
-
-		return $this->_context;
-
-	}
-
-	/**
-	 * Get the bound result, if any
-	 *
-	 * @return Result|null
-	 */
-	function getResult() {
-
-		return $this->_result;
-
+		if ( $this->_db ) return $this->_db;
+		return $this->_statement->getDatabase();
 	}
 
 	/**
@@ -678,9 +565,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return string
 	 */
 	function getTable() {
-
-		return $this->_table;
-
+		if ( $this->_table ) return $this->_table;
+		if ( $this->_statement ) return $this->_statement->getPrimaryTable();
 	}
 
 	/**
@@ -690,9 +576,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return bool
 	 */
 	function hasProperty( $name ) {
-
 		return array_key_exists( $name, $this->_properties );
-
 	}
 
 	// ArrayAccess
@@ -702,9 +586,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return bool
 	 */
 	function offsetExists( $offset ) {
-
 		return $this->__isset( $offset );
-
 	}
 
 	/**
@@ -712,9 +594,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return mixed
 	 */
 	function &offsetGet( $offset ) {
-
 		return $this->__get( $offset );
-
 	}
 
 	/**
@@ -731,9 +611,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @param string $offset
 	 */
 	function offsetUnset( $offset ) {
-
 		$this->__unset( $offset );
-
 	}
 
 	// IteratorAggregate
@@ -742,9 +620,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return \ArrayIterator
 	 */
 	function getIterator() {
-
 		return new \ArrayIterator( $this->_properties );
-
 	}
 
 	// JsonSerializable
@@ -769,9 +645,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			} else if ( is_array( $value ) ) { // list of Rows
 
 				foreach ( $value as $i => $row ) {
-
 					$value[ $i ] = $row->jsonSerialize();
-
 				}
 
 				$array[ $key ] = $value;
@@ -790,14 +664,14 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	//
 
-	/** @var Database */
-	protected $_context;
+	/** @var Statement|null */
+	protected $_statement;
 
-	/** @var string */
+	/** @var string|null */
 	protected $_table;
 
-	/** @var Result|null */
-	protected $_result;
+	/** @var Database|null */
+	protected $_db;
 
 	/** @var array */
 	protected $_properties = array();
@@ -807,10 +681,5 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/** @var null|string|array */
 	protected $_originalId;
-
-	//
-
-	/** @var array */
-	protected $_cache = array();
 
 }

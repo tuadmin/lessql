@@ -5,22 +5,22 @@ require_once 'BaseTest.php';
 
 class DatabaseTest extends BaseTest {
 
-	function testQuote() {
+	function testQuoteValue() {
 
 		$db = $this->db();
 
 		$a = array(
-			$db->quote( null ),
-			$db->quote( false ),
-			$db->quote( true ),
-			$db->quote( 0 ),
-			$db->quote( 1 ),
-			$db->quote( 0.0 ),
-			$db->quote( 3.1 ),
-			$db->quote( '1' ),
-			$db->quote( 'foo' ),
-			$db->quote( '' ),
-			$db->quote( $db->fragment( 'BAR' ) ),
+			$db->quoteValue( null ),
+			$db->quoteValue( false ),
+			$db->quoteValue( true ),
+			$db->quoteValue( 0 ),
+			$db->quoteValue( 1 ),
+			$db->quoteValue( 0.0 ),
+			$db->quoteValue( 3.1 ),
+			$db->quoteValue( '1' ),
+			$db->quoteValue( 'foo' ),
+			$db->quoteValue( '' ),
+			$db->quoteValue( $db( 'BAR' ) ),
 		);
 
 		$ex = array(
@@ -105,7 +105,7 @@ class DatabaseTest extends BaseTest {
 			$db->is( 'foo', 0 ),
 			$db->is( 'foo', 'bar' ),
 			$db->is( 'foo', new \DateTime( '2015-01-01 01:00:00' ) ),
-			$db->is( 'foo', $db->fragment( "BAR" ) ),
+			$db->is( 'foo', $db( "BAR" ) ),
 			$db->is( 'foo', array( 'x', 'y' ) ),
 			$db->is( 'foo', array( 'x', null ) ),
 			$db->is( 'foo', array( 'x' ) ),
@@ -139,7 +139,7 @@ class DatabaseTest extends BaseTest {
 			$db->isNot( 'foo', 0 ),
 			$db->isNot( 'foo', 'bar' ),
 			$db->isNot( 'foo', new \DateTime( '2015-01-01 01:00:00' ) ),
-			$db->isNot( 'foo', $db->fragment( "BAR" ) ),
+			$db->isNot( 'foo', $db( "BAR" ) ),
 			$db->isNot( 'foo', array( 'x', 'y' ) ),
 			$db->isNot( 'foo', array( 'x', null ) ),
 			$db->isNot( 'foo', array( 'x' ) ),
@@ -164,22 +164,22 @@ class DatabaseTest extends BaseTest {
 
 	}
 
-	/*function testTable() {
+	function testTable() {
 
 		$db = $this->db();
 
-		$result1 = $db->user();
-		$result2 = $db->table( 'user' );
+		$result1 = $db->user()->fetch();
+		$result2 = $db->table( 'user' )->fetch();
 
 		$row1 = $db->user( 1 );
 		$row2 = $db->table( 'user', 2 );
 
 		$ex = array( 'user', 'user', 'user', 'user', 1, 2 );
 		$a = array(
-			$result1->getTable(),
-			$result2->getTable(),
-			$row1->getTable(),
-			$row2->getTable(),
+			$result1->getPrimaryTable(),
+			$result2->getPrimaryTable(),
+			$row1->getPrimaryTable(),
+			$row2->getPrimaryTable(),
 			$row1[ 'id' ],
 			$row2[ 'id' ]
 		);
@@ -196,19 +196,8 @@ class DatabaseTest extends BaseTest {
 
 		$this->assertEquals( $row->getTable(), 'dummy' );
 		$this->assertEquals( $row->foo, 'bar' );
-		$this->assertEquals( $row->getResult(), 'test' );
+		//$this->assertEquals( $row->getResult(), 'test' );
 
 	}
-
-	function testCreateResult() {
-
-		$db = $this->db();
-
-		$row = $db->createResult( $db, 'dummy' );
-
-		$this->assertEquals( $row->getTable(), 'dummy' );
-		$this->assertEquals( $row->getParent(), null );
-
-	}*/
 
 }

@@ -9,8 +9,8 @@ class FragmentTest extends BaseTest {
 
 		$db = $this->db();
 
-		$a = $db->fragment( 'CREATE TABLE test (id INT, name VARCHAR)' );
-		$b = $db->fragment( ' create /* evil */  table TEST ( Id iNT ,  namE   VARCHAR )   -- bad' );
+		$a = $db( 'CREATE TABLE test (id INT, name VARCHAR)' );
+		$b = $db( ' create /* evil */  table TEST ( Id iNT ,  namE   VARCHAR )   -- bad' );
 
 		$this->assertTrue( $a->equals( $a ) );
 		$this->assertTrue( $b->equals( $b ) );
@@ -22,10 +22,10 @@ class FragmentTest extends BaseTest {
 
 		$db = $this->db();
 
-		$f = $db->fragment( 'SELECT * FROM &table,&tables WHERE &conds OR foo=:bar OR x in (:lol)', array(
+		$f = $db( 'SELECT * FROM &table,&tables WHERE &conds OR foo=:bar OR x in (:lol)', array(
 			'table' => 'post',
 			'tables' => array( 'a', 'b' ),
-			'conds' => $db->suffix( array( 'foo' => 'bar', 'x is null' ) ),
+			'conds' => $db->getSuffix( array( 'foo' => 'bar', 'x is null' ) ),
 			'lol' => array( 1, 2, 3 )
 		) );
 
@@ -33,6 +33,32 @@ class FragmentTest extends BaseTest {
 			"SELECT * FROM `post`,`a`, `b` WHERE  WHERE `foo` = 'bar' AND x is null OR foo=:bar OR x in ('1', '2', '3')",
 			(string) $f->resolve()
 		);
+
+	}
+
+	function testPrimaryTable() {
+
+		$db = $this->db();
+
+		$f = $db( 'SELECT * FROM post WHERE foo=bar' );
+		$this->assertEquals( $f->getPrimaryTable(), 'post' );
+
+		$f = $db( 'SELECT post.title FROM blog. post WHERE foo=bar' );
+		$this->assertEquals( $f->getPrimaryTable(), 'blog.post' );
+
+		$f = $db( 'SELECT * FROM "blog". post WHERE foo=bar' );
+		$this->assertEquals( $f->getPrimaryTable(), '"blog".post' );
+
+		$f = $db( 'SELECT * FROM "blog". `post` WHERE foo=bar' );
+		$this->assertEquals( $f->getPrimaryTable(), '"blog".`post`' );
+
+		$f = $db( 'SELECT * FROM &table WHERE foo=bar', array(
+			'table' => 'post',
+		) );
+		$this->assertEquals( $f->getPrimaryTable(), '`post`' );
+
+		$f = $db( 'INSERT INTO "blog". `post` (title) VALUES (:evil)' );
+		$this->assertEquals( $f->getPrimaryTable(), null );
 
 	}
 

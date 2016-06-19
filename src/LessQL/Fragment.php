@@ -2,82 +2,117 @@
 
 namespace LessQL;
 
+/**
+ * Represents an arbitrary SQL fragment with bound params.
+ * Can be prepared and executed.
+ */
 class Fragment {
 
+	/**
+	 * Constructor
+	 */
 	function __construct( $db, $sql, $params = array() ) {
 		$this->db = $db;
 		$this->sql = $sql;
 		$this->params = $params;
 	}
 
+	/**
+	 * @param array $params
+	 * @return Fragment
+	 */
 	function bind( $params ) {
 		$clone = clone $this;
 		$clone->params = array_merge( $clone->params, $params );
 		return $clone;
 	}
 
+	/**
+	 * @param array $params
+	 * @return Prepared
+	 */
 	function prepare( $params = null ) {
 		if ( $params ) return $this->bind( $params )->prepare();
 
-		return $this->db->prepared( $this );
+		return $this->db->createPrepared( $this );
 	}
 
+	/**
+	 * Execute statement and return result
+	 *
+	 * @param array $params
+	 * @return Result
+	 */
 	function exec( $params = null ) {
 		if ( $params ) return $this->bind( $params )->exec();
 
 		$resolved = $this->resolve();
-		$pdoStatement = $this->db->pdo()->prepare( (string) $resolved );
-		$pdoStatement->execute( $resolved->params() );
-		return $this->result( $pdoStatement );
+		var_dump( (string) $resolved );
+		$pdoStatement = $this->db->getPdo()->prepare( (string) $resolved );
+		$pdoStatement->execute( $resolved->getParams() );
+		return $this->createResult( $pdoStatement );
 	}
 
-	function result( $source ) {
-		return $this->db->result( $this, $source );
+	/**
+	 * Alias for exec
+	 *
+	 * @param array $params
+	 * @return Result
+	 */
+	function fetch( $params = null ) {
+		return $this->exec( $params );
 	}
 
 	/**
 	 * Return fragment with params resolved and inserted into the fragment text
+	 *
+	 * @return Fragment
 	 */
 	function resolve() {
 
 		$resolved = '';
-		$tokens = $this->tokens( true );
+		$tokens = $this->getTokens( true );
 		$count = count( $tokens );
 		$unset = array();
 
 		for ( $i = 0; $i < $count; ++$i ) {
 
-			list( $type, $text ) = $tokens[ $i ];
+			list( $type, $string ) = $tokens[ $i ];
 			$p = null;
 			$key = null;
 
 			if ( $type === self::TOKEN_MARKER ) {
 
-				$prefix = $text{ 0 };
-				$key = substr( $text, 1 );
-				$param = @$this->params[ $key ];
+				$prefix = $string{ 0 };
+				$key = substr( $string, 1 );
 
-				switch ( $prefix ) {
-				case '&':
-					$p = $this->db->quoteIdentifier( $param );
-					break;
-				case ':':
-					// only insert non-preparable params here
-					if ( is_array( $param ) ) {
-						$p = $this->db->quote( $param );
-					} else if ( $param instanceof Fragment ) {
-						$p = $param->resolve();
+				if ( array_key_exists( $key, $this->params ) ) {
+
+					$param = $this->params[ $key ];
+
+					switch ( $prefix ) {
+					case '&':
+						$p = $this->db->quoteIdentifier( $param );
+						break;
+					case ':':
+						// only resolve non-preparable params here
+						if ( is_array( $param ) ) {
+							$p = $this->db->quoteValue( $param );
+						} else if ( $param instanceof Fragment ) {
+							$p = $param->resolve();
+						}
+						break;
 					}
-					break;
+
 				}
 
 			}
 
-			if ( $p ) {
+			if ( $p !== null ) {
 				$unset[] = $key;
 				$resolved .= $p;
 			} else {
-				$resolved .= $text;
+				$resolved .= $string;
 			}
 
 		}
@@ -85,22 +120,70 @@ class Fragment {
 		$params = $this->params;
 		foreach ( $unset as $key ) unset( $params[ $key ] );
 
-		return $this->db->fragment( $resolved, $params );
+		return $this->db->createFragment( $resolved, $params );
 
 	}
 
-	//
-
-	function params() {
-		return $this->params;
+	/**
+	 * @param array|\PDOStatement $source
+	 * @return Result
+	 */
+	function createResult( $source ) {
+		return $this->db->createResult( $this, $source );
 	}
 
-	function db() {
-		return $this->db;
-	}
-
+	/**
+	 * Determine if this statement is equal to another.
+	 * Ignores whitespace, comments, and case of keywords and identifiers.
+	 *
+	 * @param string|Fragment
+	 * @return boolean
+	 */
 	function equals( $other ) {
-		return $this->tokens() === $other->tokens();
+		return $this->getTokens() === $this->db->createFragment( $other )->getTokens();
+	}
+
+	/**
+	 * Return primary table of this fragment
+	 *
+	 * @return Fragment|null
+	 */
+	function getPrimaryTable() {
+		if ( $this->primaryTable ) return $this->primaryTable;
+
+		$step = 0;
+		$table = "";
+
+		foreach ( $this->resolve()->getTokens() as $token ) {
+			list ( $type, $string ) = $token;
+
+			$valid =
+				$type === self::TOKEN_WORD ||
+				$type === self::TOKEN_BACKTICK_QUOTED ||
+				$type === self::TOKEN_DOUBLE_QUOTED;
+
+			if ( $step === 0 && $string === "from" ) {
+				++$step;
+			} else if ( $step === 1 && $valid ) {
+				$table .= $string;
+				++$step;
+			} else if ( $step === 2 ) {
+				if ( $string === "." ) {
+					$table .= ".";
+					++$step;
+				} else {
+					break;
+				}
+			} else if ( $step === 3 && $valid ) {
+				 $table .= $string;
+				 break;
+			} else {
+				$step = 0;
+				$table = "";
+			}
+		}
+
+		return $table ? $this->db->createFragment( $table ) : null;
 	}
 
 	//
@@ -108,8 +191,11 @@ class Fragment {
 	/**
 	 * This is probably a non-standard, insane hack. Works great though.
 	 * TODO Needs rigorous testing
+	 *
+	 * @param boolean $whitespace Set to also get whitespace tokens
+	 * @return array
 	 */
-	function tokens( $whitespace = false ) {
+	function getTokens( $whitespace = false ) {
 
 		if ( $this->tokens ) {
 			return $whitespace ? $this->tokens : $this->cleanTokens;
@@ -149,7 +235,7 @@ class Fragment {
 
 		while ( preg_match( $tokenizeRx, $sql, $match ) ) {
 			for ( $type = 1; strlen( $match[ $type ] ) === 0; ++$type );
-			$text = $match[ 0 ];
+			$string = $match[ 0 ];
 
 			switch ( $type ) {
 			case self::TOKEN_WHITESPACE:
@@ -157,22 +243,46 @@ class Fragment {
 			case self::TOKEN_COMMENT_C:
 				break;
 			case self::TOKEN_WORD:
-				$this->cleanTokens[] = array( $type, strtolower( $text ) );
+			case self::TOKEN_BACKTICK_QUOTED:
+			case self::TOKEN_DOUBLE_QUOTED:
+			case self::TOKEN_BRACKET_QUOTED:
+				$this->cleanTokens[] = array( $type, strtolower( $string ) );
 				break;
 			default:
-				$this->cleanTokens[] = array( $type, $text );
+				$this->cleanTokens[] = array( $type, $string );
 			}
 
-			$this->tokens[] = array( $type, $text );
-			$sql = substr( $sql, strlen( $text ) );
+			$this->tokens[] = array( $type, $string );
+			$sql = substr( $sql, strlen( $string ) );
 		}
 
 		return $whitespace ? $this->tokens : $this->cleanTokens;
 
 	}
 
+	/**
+	 * @return Database
+	 */
+	function getDatabase() {
+		return $this->db;
+	}
+
+	/**
+	 * Get SQL string of this fragment
+	 *
+	 * @return string
+	 */
 	function __toString() {
 		return $this->sql;
+	}
+
+	/**
+	 * Get fragment params
+	 *
+	 * @return array
+	 */
+	function getParams() {
+		return $this->params;
 	}
 
 	const TOKEN_BACKTICK_QUOTED = 1;
@@ -188,10 +298,22 @@ class Fragment {
 	const TOKEN_CHARACTER = 12;
 	const TOKEN_WHITESPACE = 13;
 
+	/** @var Database */
 	protected $db;
+
+	/** @var string */
 	protected $sql;
+
+	/** @var array */
 	protected $params;
+
+	/** @var array */
 	protected $tokens;
+
+	/** @var array */
 	protected $cleanTokens;
+
+	/** @var string */
+	protected $primaryTable;
 
 }

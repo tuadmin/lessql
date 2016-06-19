@@ -9,7 +9,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( array( 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
 
 		$row[ 'bar' ] = 1;
 		$row->baz = 2;
@@ -56,7 +56,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
 
 		$this->assertEquals( array( 'name' => 'Foo Bar', 'id' => 42 ), $row->getModified() );
 		$this->assertEquals( null, $row->getOriginalid() );
@@ -77,7 +77,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( array( 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
 		$row->setClean();
 
 	}
@@ -86,7 +86,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
 
 		$a = array(
 			$row[ 'id' ],
@@ -115,7 +115,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'categorization' );
+		$row = $db->createRow( array(), array( 'table' => 'categorization', 'db' => $db ) );
 
 		$a[] = $row->getId();
 
@@ -141,7 +141,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'post', array(
+		$row = $db->createRow( array(
 			'title' => 'Fantasy Movie Review',
 			'user' => array(
 				'name' => 'Fantasy Guy'
@@ -156,7 +156,7 @@ class RowTest extends BaseTest {
 				)
 
 			)
-		) );
+		), array( 'table' => 'post', 'db' => $db ) );
 
 		$this->assertEquals( array( 'title' => 'Fantasy Movie Review' ), $row->getData() );
 		$this->assertEquals( array( 'title' => 'Fantasy Movie Review' ), $row->getModified() );
@@ -167,7 +167,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
 
 		$row->delete(); // does nothing
 
@@ -184,7 +184,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'post', array(
+		$row = $db->createRow( array(
 			'title' => 'Fantasy Movie Review',
 			'author' => array(
 				'name' => 'Fantasy Guy'
@@ -202,7 +202,7 @@ class RowTest extends BaseTest {
 				)
 
 			)
-		) );
+		), array( 'table' => 'post', 'db' => $db ) );
 
 		$db->begin();
 		$row->save();
@@ -241,7 +241,7 @@ class RowTest extends BaseTest {
 			)
 		);
 
-		$row = $db->createRow( 'post', $data );
+		$row = $db->createRow( $data, array( 'table' => 'user', 'db' => $db ) );
 
 		$a = $row->jsonSerialize();
 		$ex = $data;

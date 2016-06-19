@@ -8,10 +8,6 @@ class Context {
 
 	}
 
-	function rewrite( $statement ) {
-		return $statement;
-	}
-
 	function exec( $statement ) {
 
 	}
@@ -26,6 +22,64 @@ class Context {
 
 	function pdo() {
 		return $this->db->pdo();
+	}
+
+	/**
+	 * Get column, used by result if row is parent
+	 *
+	 * @param string $key
+	 * @return array
+	 */
+	function getLocalKeys( $key ) {
+
+		if ( isset( $this[ $key ] ) ) {
+
+			return array( $this[ $key ] );
+
+		}
+
+		return array();
+
+	}
+
+	/**
+	 * Get global keys of parent result, or column if row is root
+	 *
+	 * @param string $key
+	 * @return array
+	 */
+	function getGlobalKeys( $key ) {
+
+		$result = $this->getResult();
+
+		if ( $result ) return $result->getGlobalKeys( $key );
+
+		return $this->getLocalKeys( $key );
+
+	}
+
+	/**
+	 * Get value from cache
+	 *
+	 * @param $key
+	 * @return mixed
+	 */
+	function getCache( $key ) {
+
+		return isset( $this->_cache[ $key ] ) ? $this->_cache[ $key ] : null;
+
+	}
+
+	/**
+	 * Set cache value
+	 *
+	 * @param string $key
+	 * @param mixed $value
+	 */
+	function setCache( $key, $value ) {
+
+		$this->_cache[ $key ] = $value;
+
 	}
 
 }

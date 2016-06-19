@@ -14,32 +14,52 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		if ( is_array( $source ) ) {
 			$this->rows = $source;
 		} else {
-			$this->rows = $source->fetchAll();
+			$this->rows = $source->fetchAll( \PDO::FETCH_ASSOC );
 			$this->affected = $source->rowCount();
 		}
 
-		$this->rows = array_map( array( $this, 'row' ), $this->rows );
+		$this->rows = array_map( array( $this, 'createRow' ), $this->rows );
 		$this->count = count( $this->rows );
 
-		if ( $this->statement->hasInsertId() ) {
-			$this->insertId = $this->pdo()->lastInsertId( $this->statement->getInsertSequence() );
-		}
+		$this->insertId = $this->statement->getDatabase()->getPdo()
+			->lastInsertId( /*$this->statement->getInsertSequence()*/ );
 	}
 
-	//
+	/**
+	 *
+	 */
+	function first() {
+		return $this->count > 0 ? $this->rows[ 0 ] : null;
+	}
 
+	/**
+	 *
+	 */
 	function affected() {
 		return $this->affected;
 	}
 
-	function insertId() {
+	/**
+	 *
+	 */
+	function getInsertId() {
 		return $this->insertId;
 	}
 
-	function row( $data ) {
-		return $this->statement->db()->row( $data, array(
+	/**
+	 *
+	 */
+	function createRow( $data ) {
+		return $this->statement->getDatabase()->createRow( $data, array(
 			'result' => $this
 		) );
+	}
+
+	/**
+	 *
+	 */
+	function getPrimaryTable() {
+		return $this->statement->getPrimaryTable();
 	}
 
 	//
@@ -53,24 +73,35 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		return new \ArrayIterator( $this->rows );
 	}
 
-	//
-
+	/**
+	 * Countable
+	 */
 	function count() {
 		return $this->count;
 	}
 
-	//
-
+	/**
+	 * JsonSerializable
+	 */
 	function jsonSerialize() {
 		return $this->rows;
 	}
 
 	//
 
+	/** @var Fragment */
 	protected $statement;
+
+	/** @var array */
 	protected $rows = array();
+
+	/** @var int */
 	protected $count = 0;
+
+	/** @var int */
 	protected $affected = 0;
+
+	/** @var mixed */
 	protected $insertId;
 
 }

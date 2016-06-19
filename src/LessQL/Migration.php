@@ -2,6 +2,9 @@
 
 namespace LessQL;
 
+/**
+ * Represents a database migration
+ */
 class Migration implements \JsonSerializable {
 
 	/**
@@ -18,6 +21,9 @@ class Migration implements \JsonSerializable {
 		$this->save();
 	}
 
+	/**
+	 * Destructor. Always saves history.
+	 */
 	function __destruct() {
 		$this->save();
 	}
@@ -26,16 +32,36 @@ class Migration implements \JsonSerializable {
 	 * Execute a statement if it has not been run by this migration before
 	 *
 	 * @param string $statement The statement to run
+	 * @return $this
 	 */
-	function apply( $statement ) {
+	function apply( $action ) {
+
+		if ( is_callable( $action ) ) {
+			$this->db->begin();
+			try {
+				$action( $this );
+				$this->db->commit();
+			} catch ( \Exception $ex ) {
+				$this->break = true;
+				$this->log( 'failed', $action, $ex );
+				try {
+					$this->db->rollback();
+				} catch ( \Exception $ex2 ) {
+					$this->log( 'rollbackFailed', null, $ex2 );
+				}
+			}
+
+			return $this;
+		}
+
 		if ( $this->break ) {
 			return $this->log( 'skipped', $statement );
 		}
 
-		$s = $this->db->fragment( $statement );
+		$s = $this->db->createFragment( $statement );
 
 		foreach ( $this->history as $item ) {
-			if ( $s->equals( $this->db->fragment( $item[ 'statement' ] ) ) ) {
+			if ( $s->equals( $item[ 'statement' ] ) ) {
 				return $this->log( 'skipped', $statement );
 			}
 		}
@@ -60,6 +86,14 @@ class Migration implements \JsonSerializable {
 
 	}
 
+	/**
+	 * Get or add item to migration log
+	 *
+	 * @param string $status
+	 * @param string $statement
+	 * @param \Exception $ex
+	 * @return array
+	 */
 	function log( $status = null, $statement = null, $ex = null ) {
 		if ( $status === null ) return $this->log;
 
@@ -72,16 +106,31 @@ class Migration implements \JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * Get migration history
+	 *
+	 * @return array
+	 */
 	function history() {
 		return $this->history;
 	}
 
+	/**
+	 * Save migration history
+	 *
+	 * @return int Bytes written
+	 */
 	function save() {
 		return file_put_contents( $this->path, '<?php return ' . var_export( $this->history, true ) . ';' );
 	}
 
 	//
 
+	/**
+	 * Get JSON representation of migration
+	 *
+	 * @return array
+	 */
 	function jsonSerialize() {
 		return array(
 			'history' => $this->history,
@@ -90,10 +139,19 @@ class Migration implements \JsonSerializable {
 		);
 	}
 
+	/** @var Database */
 	protected $db;
+
+	/** @var string */
 	protected $path;
+
+	/** @var array */
 	protected $history;
+
+	/** @var array */
 	protected $log = array();
+
+	/** @var boolean */
 	protected $break = false;
 
 }
