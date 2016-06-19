@@ -3,7 +3,7 @@
 namespace LessQL;
 
 /**
- * Represents a row of an SQL table (associative)
+ * Represents a row of a SELECT statement
  */
 class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
@@ -16,11 +16,9 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @param array $properties
 	 * @param Result|null $result
 	 */
-	function __construct( $db, $name, $properties = array(), $result = null ) {
+	function __construct( $properties = array(), $options = array() ) {
 
-		$this->_db = $db;
-		$this->_result = $result;
-		$this->_table = $this->_db->getAlias( $name );
+		$this->_context = $context;
 
 		$this->setData( $properties );
 
@@ -659,7 +657,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function getDatabase() {
 
-		return $this->_db;
+		return $this->_context;
 
 	}
 
@@ -793,7 +791,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	//
 
 	/** @var Database */
-	protected $_db;
+	protected $_context;
 
 	/** @var string */
 	protected $_table;

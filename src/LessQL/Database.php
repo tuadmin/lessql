@@ -11,12 +11,15 @@ class Database {
 	 * Constructor. Sets PDO to exception mode.
 	 *
 	 * @param \PDO $pdo
+	 * @param array $options
 	 */
-	function __construct( $pdo ) {
+	function __construct( $pdo, $options = array() ) {
 
-		// required for safety
 		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
 		$this->pdo = $pdo;
+
+		if ( @$options[ 'identifierDelimiter' ] ) $this->identifierDelimiter = $options[ 'identifierDelimiter' ];
+		$this->onQuery = @$options[ 'onQuery' ];
 
 	}
 
@@ -35,7 +38,6 @@ class Database {
 	function __call( $name, $args ) {
 
 		array_unshift( $args, $name );
-
 		return call_user_func_array( array( $this, 'table' ), $args );
 
 	}
@@ -69,11 +71,22 @@ class Database {
 
 		}
 
-		return $this->createResult( $this, $name );
+		return $this->result( $this, $name );
 
 	}
 
 	// Factories
+
+	/**
+	 * Create an SQL statement, optionally with bound params
+	 * @param string $name
+	 * @param array $properties
+	 * @param Result|null $result
+	 * @return Fragment
+	 */
+	function fragment( $sql, $params = array() ) {
+		return new Fragment( $this, $sql, $params );
+	}
 
 	/**
 	 * Create a row from given properties.
@@ -84,10 +97,8 @@ class Database {
 	 * @param Result|null $result
 	 * @return Row
 	 */
-	function createRow( $name, $properties = array(), $result = null ) {
-
+	function row( $name, $properties = array(), $result = null ) {
 		return new Row( $this, $name, $properties, $result );
-
 	}
 
 	/**
@@ -98,10 +109,15 @@ class Database {
 	 * @param string $name
 	 * @return Result
 	 */
-	function createResult( $parent, $name ) {
+	function result( $statement, $source ) {
+		return new Result( $statement, $source );
+	}
 
-		return new Result( $parent, $name );
-
+	/**
+	 * Create a migration
+	 */
+	function migration( $path ) {
+		return new Migration( $this, $path );
 	}
 
 	// PDO interface
@@ -110,36 +126,20 @@ class Database {
 	 * Prepare an SQL statement
 	 *
 	 * @param string $query
-	 * @return \PDOStatement
+	 * @return Statement
 	 */
-	function prepare( $query ) {
-
-		return $this->pdo->prepare( $query );
-
+	function prepare( $statement, $params = array() ) {
+		return $this->statement( $statement, $params )->prepare();
 	}
 
 	/**
 	 * Execute an SQL statement directly
 	 *
 	 * @param string $query
-	 * @return \PDOStatement
+	 * @return Statement
 	 */
-	function query( $query ) {
-
-		return $this->pdo->query( $query );
-
-	}
-
-	/**
-	 * Return last inserted id
-	 *
-	 * @param string|null $sequence
-	 * @return string
-	 */
-	function lastInsertId( $sequence = null ) {
-
-		return $this->pdo->lastInsertId( $sequence );
-
+	function exec( $statement, $params = array() ) {
+		return $this->statement( $statement, $params )->exec();
 	}
 
 	/**
@@ -148,9 +148,7 @@ class Database {
 	 * @return bool
 	 */
 	function begin() {
-
 		return $this->pdo->beginTransaction();
-
 	}
 
 	/**
@@ -159,9 +157,7 @@ class Database {
 	 * @return bool
 	 */
 	function commit() {
-
 		return $this->pdo->commit();
-
 	}
 
 	/**
@@ -170,313 +166,10 @@ class Database {
 	 * @return bool
 	 */
 	function rollback() {
-
 		return $this->pdo->rollBack();
-
 	}
 
-	// Schema hints
-
-	/**
-	 * Get primary key of a table, may be array for compound keys
-	 *
-	 * Convention is "id"
-	 *
-	 * @param string $table
-	 * @return string|array
-	 */
-	function getPrimary( $table ) {
-
-		if ( isset( $this->primary[ $table ] ) ) {
-
-			return $this->primary[ $table ];
-
-		}
-
-		return 'id';
-
-	}
-
-	/**
-	 * Set primary key of a table.
-	 * Compound keys may be passed as an array.
-	 * Always set compound primary keys explicitly with this method.
-	 *
-	 * @param string $table
-	 * @param string|array $key
-	 * @return $this
-	 */
-	function setPrimary( $table, $key ) {
-
-		$this->primary[ $table ] = $key;
-
-		// compound keys are never auto-generated,
-		// so we can assume they are required
-		if ( is_array( $key ) ) {
-
-			foreach ( $key as $k ) {
-
-				$this->setRequired( $table, $k );
-
-			}
-
-		}
-
-		return $this;
-
-	}
-
-	/**
-	 * Get a reference key for an association on a table
-	 *
-	 * "How would $table reference another table under $name?"
-	 *
-	 * Convention is "$name_id"
-	 *
-	 * @param string $table
-	 * @param string $name
-	 * @return string
-	 */
-	function getReference( $table, $name ) {
-
-		if ( isset( $this->references[ $table ][ $name ] ) ) {
-
-			return $this->references[ $table ][ $name ];
-
-		}
-
-		return $name . '_id';
-
-	}
-
-	/**
-	 * Set a reference key for an association on a table
-	 *
-	 * @param string $table
-	 * @param string $name
-	 * @param string $key
-	 * @return $this
-	 */
-	function setReference( $table, $name, $key ) {
-
-		$this->references[ $table ][ $name ] = $key;
-
-		return $this;
-
-	}
-
-	/**
-	 * Get a back reference key for an association on a table
-	 *
-	 * "How would $table be referenced by another table under $name?"
-	 *
-	 * Convention is "$table_id"
-	 *
-	 * @param string $table
-	 * @param string $name
-	 * @return string
-	 */
-	function getBackReference( $table, $name ) {
-
-		if ( isset( $this->backReferences[ $table ][ $name ] ) ) {
-
-			return $this->backReferences[ $table ][ $name ];
-
-		}
-
-		return $table . '_id';
-
-	}
-
-	/**
-	 * Set a back reference key for an association on a table
-	 *
-	 * @param string $table
-	 * @param string $name
-	 * @param string $key
-	 * @return $this
-	 */
-	function setBackReference( $table, $name, $key ) {
-
-		$this->backReferences[ $table ][ $name ] = $key;
-
-		return $this;
-
-	}
-
-	/**
-	 * Get alias of a table
-	 *
-	 * @param string $alias
-	 * @return string
-	 */
-	function getAlias( $alias ) {
-
-		return isset( $this->aliases[ $alias ] ) ? $this->aliases[ $alias ] : $alias;
-
-	}
-
-	/**
-	 * Set alias of a table
-	 *
-	 * @param string $alias
-	 * @param string $table
-	 * @return $this
-	 */
-	function setAlias( $alias, $table ) {
-
-		$this->aliases[ $alias ] = $table;
-
-		return $this;
-
-	}
-
-	/**
-	 * Is a column of a table required for saving? Default is no
-	 *
-	 * @param string $table
-	 * @param string $column
-	 * @return bool
-	 */
-	function isRequired( $table, $column ) {
-
-		return isset( $this->required[ $table ][ $column ] );
-
-	}
-
-	/**
-	 * Get a map of required columns of a table
-	 *
-	 * @param string $table
-	 * @return array
-	 */
-	function getRequired( $table ) {
-
-		return isset( $this->required[ $table ] ) ? $this->required[ $table ] : array();
-
-	}
-
-	/**
-	 * Set a column to be required for saving
-	 * Any primary key that is not auto-generated should be required
-	 * Compound primary keys are required by default
-	 *
-	 * @param string $table
-	 * @param string $column
-	 * @return $this
-	 */
-	function setRequired( $table, $column ) {
-
-		$this->required[ $table ][ $column ] = true;
-
-		return $this;
-
-	}
-
-	/**
-	 * Get primary sequence name of table (used in INSERT by Postgres)
-	 *
-	 * Conventions is "$tableRewritten_$primary_seq"
-	 *
-	 * @param string $table
-	 * @return null|string
-	 */
-	function getSequence( $table ) {
-
-		if ( isset( $this->sequences[ $table ] ) ) {
-
-			return $this->sequences[ $table ];
-
-		}
-
-		$primary = $this->getPrimary( $table );
-
-		if ( is_array( $primary ) ) return null;
-
-		$table = $this->rewriteTable( $table );
-
-		return $table . '_' . $primary . '_seq';
-
-	}
-
-	/**
-	 * Set primary sequence name of table
-	 *
-	 * @param string $table
-	 * @param string $sequence
-	 * @return $this
-	 */
-	function setSequence( $table, $sequence ) {
-
-		$this->sequences[ $table ] = $sequence;
-
-		return $this;
-
-	}
-
-	/**
-	 * Get rewritten table name
-	 *
-	 * @param string $table
-	 * @return string
-	 */
-	function rewriteTable( $table ) {
-
-		if ( is_callable( $this->rewrite ) ) {
-
-			return call_user_func( $this->rewrite, $table );
-
-		}
-
-		return $table;
-
-	}
-
-	/**
-	 * Set table rewrite function
-	 * For example, it could add a prefix
-	 *
-	 * @param callable $rewrite
-	 * @return $this
-	 */
-	function setRewrite( $rewrite ) {
-
-		$this->rewrite = $rewrite;
-
-		return $this;
-
-	}
-
-	// SQL style
-
-	/**
-	 * Get identifier delimiter
-	 *
-	 * @return string
-	 */
-	function getIdentifierDelimiter() {
-
-		return $this->identifierDelimiter;
-
-	}
-
-	/**
-	 * Sets delimiter used when quoting identifiers.
-	 * Should be backtick or double quote.
-	 * Set to null to disable quoting.
-	 *
-	 * @param string|null $d
-	 * @return $this
-	 */
-	function setIdentifierDelimiter( $d ) {
-
-		$this->identifierDelimiter = $d;
-
-		return $this;
-
-	}
-
-	// Queries
+	// Common statements
 
 	/**
 	 * Select rows from a table
@@ -488,19 +181,17 @@ class Database {
 	 * @param int|null $limitCount
 	 * @param int|null $limitOffset
 	 * @param array $params
-	 * @return \PDOStatement
+	 * @return Result
 	 */
 	function select( $table, $options = array() ) {
 
 		$options = array_merge( array(
-
 			'expr' => null,
 			'where' => array(),
 			'orderBy' => array(),
 			'limitCount' => null,
 			'limitOffset' => null,
 			'params' => array()
-
 		), $options );
 
 		$query = "SELECT ";
@@ -522,7 +213,7 @@ class Database {
 		$table = $this->rewriteTable( $table );
 		$query .= " FROM " . $this->quoteIdentifier( $table );
 
-		$query .= $this->getSuffix( $options[ 'where' ], $options[ 'orderBy' ], $options[ 'limitCount' ], $options[ 'limitOffset' ] );
+		$query .= $this->suffix( $options[ 'where' ], $options[ 'orderBy' ], $options[ 'limitCount' ], $options[ 'limitOffset' ] );
 
 		$this->onQuery( $query, $options[ 'params' ] );
 
@@ -540,18 +231,18 @@ class Database {
 	 * The $method parameter selects one of the following insert methods:
 	 *
 	 * "prepared": Prepare a query and execute it once per row using bound params
-	 *             Does not support Literals in row data (PDO limitation)
+	 *             Does not support Fragments in row data (PDO limitation)
 	 *
 	 * "batch":    Create a single query mit multiple value lists
-	 *             Supports Literals, but not supported everywhere
+	 *             Supports Fragments, but not supported everywhere
 	 *
 	 * default:    Execute one INSERT per row
-	 *             Supports Literals, supported everywhere, slow for many rows
+	 *             Supports Fragments, supported everywhere, slow for many rows
 	 *
 	 * @param string $table
 	 * @param array $rows
 	 * @param string|null $method
-	 * @return \PDOStatement|null
+	 * @return Result|null
 	 */
 	function insert( $table, $rows, $method = null ) {
 
@@ -559,18 +250,12 @@ class Database {
 		if ( !isset( $rows[ 0 ] ) ) $rows = array( $rows );
 
 		if ( $method === 'prepared' ) {
-
 			return $this->insertPrepared( $table, $rows );
-
 		} else if ( $method === 'batch' ) {
-
 			return $this->insertBatch( $table, $rows );
-
-		} else {
-
-			return $this->insertDefault( $table, $rows );
-
 		}
+
+		return $this->insertDefault( $table, $rows );
 
 	}
 
@@ -579,32 +264,26 @@ class Database {
 	 *
 	 * @param string $table
 	 * @param array $rows
-	 * @return \PDOStatement|null
+	 * @return Result|null
 	 */
 	protected function insertPrepared( $table, $rows ) {
 
-		$columns = $this->getColumns( $rows );
+		$columns = $this->columns( $rows );
 		if ( empty( $columns ) ) return;
 
-		$query = $this->insertHead( $table, $columns );
-		$query .= "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )";
-
-		$statement = $this->prepare( $query );
+		$prepared = $this->insertHead( $table, $columns )
+			->bind( array( 'suffix' => $this->fragment( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" ) ) )
+			->prepare();
 
 		foreach ( $rows as $row ) {
 
 			$values = array();
 
 			foreach ( $columns as $column ) {
-
-				$value = (string) $this->format( @$row[ $column ] );
-				$values[] = $value;
-
+				$values[] = (string) $this->format( @$row[ $column ] );
 			}
 
-			$this->onQuery( $query, $values );
-
-			$statement->execute( $values );
+			$statement->exec( $values );
 
 		}
 
@@ -617,23 +296,16 @@ class Database {
 	 *
 	 * @param string $table
 	 * @param array $rows
-	 * @return \PDOStatement|null
+	 * @return Result|null
 	 */
 	protected function insertBatch( $table, $rows ) {
 
-		$columns = $this->getColumns( $rows );
+		$columns = $this->columns( $rows );
 		if ( empty( $columns ) ) return;
 
-		$query = $this->insertHead( $table, $columns );
+		$insert = $this->insertHead( $table, $columns );
 		$lists = $this->valueLists( $rows, $columns );
-		$query .= implode( ", ", $lists );
-
-		$this->onQuery( $query );
-
-		$statement = $this->prepare( $query );
-		$statement->execute();
-
-		return $statement;
+		$insert->append( implode( ", ", $lists ) )->exec();
 
 	}
 
@@ -642,25 +314,18 @@ class Database {
 	 *
 	 * @param string $table
 	 * @param array $rows
-	 * @return \PDOStatement|null
+	 * @return Result|null
 	 */
 	protected function insertDefault( $table, $rows ) {
 
-		$columns = $this->getColumns( $rows );
+		$columns = $this->columns( $rows );
 		if ( empty( $columns ) ) return;
 
-		$query = $this->insertHead( $table, $columns );
+		$insert = $this->insertHead( $table, $columns );
 		$lists = $this->valueLists( $rows, $columns );
 
 		foreach ( $lists as $list ) {
-
-			$singleQuery = $query . $list;
-
-			$this->onQuery( $singleQuery );
-
-			$statement = $this->prepare( $singleQuery );
-			$statement->execute();
-
+			$statement = $insert->append( $list )->exec();
 		}
 
 		return $statement; // last statement is returned
@@ -676,12 +341,9 @@ class Database {
 	 */
 	protected function insertHead( $table, $columns ) {
 
-		$quotedColumns = array_map( array( $this, 'quoteIdentifier' ), $columns );
-		$table = $this->rewriteTable( $table );
-		$query = "INSERT INTO " . $this->quoteIdentifier( $table );
-		$query .= " ( " . implode( ", ", $quotedColumns ) . " ) VALUES ";
-
-		return $query;
+		return $this->statement( "INSERT INTO &table ( &columns ) VALUES ", array(
+			'table' => $this->rewriteTable( $table )
+		) );
 
 	}
 
@@ -691,18 +353,14 @@ class Database {
 	 * @param array $rows
 	 * @return array
 	 */
-	protected function getColumns( $rows ) {
+	protected function columns( $rows ) {
 
 		$columns = array();
 
 		foreach ( $rows as $row ) {
-
 			foreach ( $row as $column => $value ) {
-
 				$columns[ $column ] = true;
-
 			}
-
 		}
 
 		return array_keys( $columns );
@@ -721,17 +379,11 @@ class Database {
 		$lists = array();
 
 		foreach ( $rows as $row ) {
-
 			$values = array();
-
 			foreach ( $columns as $column ) {
-
 				$values[] = $this->quote( @$row[ $column ] );
-
 			}
-
 			$lists[] = "( " . implode( ", ", $values ) . " )";
-
 		}
 
 		return $lists;
@@ -739,7 +391,7 @@ class Database {
 	}
 
 	/**
-	 * Execute update query and return statement
+	 * Execute update query and return result
 	 *
 	 * UPDATE $table SET $data [WHERE $where]
 	 *
@@ -747,7 +399,7 @@ class Database {
 	 * @param array $data
 	 * @param array $where
 	 * @param array $params
-	 * @return null|\PDOStatement
+	 * @return null|Result
 	 */
 	function update( $table, $data, $where = array(), $params = array() ) {
 
@@ -756,60 +408,43 @@ class Database {
 		$set = array();
 
 		foreach ( $data as $column => $value ) {
-
 			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quote( $value );
-
 		}
 
 		if ( !is_array( $where ) ) $where = array( $where );
 		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 3 );
 
-		$table = $this->rewriteTable( $table );
-		$query = "UPDATE " . $this->quoteIdentifier( $table );
-		$query .= " SET " . implode( ", ", $set );
-		$query .= $this->getSuffix( $where );
+		$params[ 'table' ] = $this->rewriteTable( $table );
 
-		$this->onQuery( $query, $params );
-
-		$statement = $this->prepare( $query );
-		$statement->execute( $params );
-
-		return $statement;
+		return $this->statement( "UPDATE &table SET " . implode( ", ", $set ) . $this->suffix( $where ), $params )->exec();
 
 	}
 
 	/**
-	 * Execute delete query and return statement
+	 * Execute delete query and return result
 	 *
 	 * DELETE FROM $table [WHERE $where]
 	 *
 	 * @param string $table
 	 * @param array $where
 	 * @param array $params
-	 * @return \PDOStatement
+	 * @return Result
 	 */
 	function delete( $table, $where = array(), $params = array() ) {
 
 		if ( !is_array( $where ) ) $where = array( $where );
 		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 2 );
 
-		$table = $this->rewriteTable( $table );
-		$query = "DELETE FROM " . $this->quoteIdentifier( $table );
-		$query .= $this->getSuffix( $where );
+		$params[ 'table' ] = $this->rewriteTable( $table );
 
-		$this->onQuery( $query, $params );
-
-		$statement = $this->prepare( $query );
-		$statement->execute( $params );
-
-		return $statement;
+		return $this->exec( "DELETE FROM &table" . $this->suffix( $where ), $params );
 
 	}
 
-	// SQL utility
+	// SQL utility, mainly used internally
 
 	/**
-	 * Return WHERE/LIMIT/ORDER suffix for queries
+	 * Return WHERE/LIMIT/ORDER statement suffix
 	 *
 	 * @param array $where
 	 * @param array $orderBy
@@ -817,42 +452,40 @@ class Database {
 	 * @param int|null $limitOffset
 	 * @return string
 	 */
-	function getSuffix( $where, $orderBy = array(), $limitCount = null, $limitOffset = null ) {
+	function suffix( $where, $orderBy = array(), $limitCount = null, $limitOffset = null ) {
 
 		$suffix = "";
 
 		if ( !empty( $where ) ) {
-
-			$suffix .= " WHERE " . implode( " AND ", $where );
-
+			$w = array();
+			foreach ( $where as $key => $condition ) {
+				if ( !is_numeric( $key ) ) {
+					$condition = $this->is( $key, $condition );
+				}
+				$w[] = $condition;
+			}
+			$suffix .= " WHERE " . implode( " AND ", $w );
 		}
 
 		if ( !empty( $orderBy ) ) {
-
 			$suffix .= " ORDER BY " . implode( ", ", $orderBy );
-
 		}
 
 		if ( isset( $limitCount ) ) {
-
 			$suffix .= " LIMIT " . intval( $limitCount );
-
 			if ( isset( $limitOffset ) ) {
-
 				$suffix .= " OFFSET " . intval( $limitOffset );
-
 			}
-
 		}
 
-		return $suffix;
+		return $this->fragment( $suffix );
 
 	}
 
 	/**
 	 * Build an SQL condition expressing that "$column is $value",
 	 * or "$column is in $value" if $value is an array. Handles null
-	 * and literals like new Literal( "NOW()" ) correctly.
+	 * and fragments like new Fragment( "NOW()" ) correctly.
 	 *
 	 * @param string $column
 	 * @param string|array $value
@@ -868,9 +501,7 @@ class Database {
 
 		// always treat value as array
 		if ( !is_array( $value ) ) {
-
 			$value = array( $value );
-
 		}
 
 		// always quote column identifier
@@ -883,12 +514,9 @@ class Database {
 			$value = $value[ 0 ];
 
 			if ( $value === null ) {
-
-				return $column . " IS" . $not . " NULL";
-
+				return $this->fragment( $column . " IS" . $not . " NULL" );
 			} else {
-
-				return $column . " " . $bang . "= " . $this->quote( $value );
+				return $this->fragment( $column . " " . $bang . "= " . $this->quote( $value ) );
 			}
 
 		} else if ( count( $value ) > 1 ) {
@@ -901,13 +529,9 @@ class Database {
 			foreach ( $value as $v ) {
 
 				if ( $v === null ) {
-
 					$null = true;
-
 				} else {
-
 					$values[] = $this->quote( $v );
-
 				}
 
 			}
@@ -915,37 +539,46 @@ class Database {
 			$clauses = array();
 
 			if ( !empty( $values ) ) {
-
 				$clauses[] = $column . $not . " IN ( " . implode( ", ", $values ) . " )";
-
 			}
 
 			if ( $null ) {
-
 				$clauses[] = $column . " IS" . $not . " NULL";
-
 			}
 
-			return implode( $or, $clauses );
+			return $this->fragment( implode( $or, $clauses ) );
 
 		}
 
-		return $novalue;
+		return $this->fragment( $novalue );
 
 	}
 
 	/**
 	 * Build an SQL condition expressing that "$column is not $value"
 	 * or "$column is not in $value" if $value is an array. Handles null
-	 * and literals like new Literal( "NOW()" ) correctly.
+	 * and fragments like new Fragment( "NOW()" ) correctly.
 	 *
 	 * @param string $column
 	 * @param string|array $value
 	 * @return string
 	 */
 	function isNot( $column, $value ) {
-
 		return $this->is( $column, $value, true );
+	}
+
+	/**
+	 * Build a SET instruction, e.g. for UPDATE
+	 */
+	function set( $data ) {
+
+		$set = array();
+
+		foreach ( $data as $column => $value ) {
+			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quote( $value );
+		}
+
+		return $this->fragment( implode( ", ", $set ) );
 
 	}
 
@@ -957,45 +590,26 @@ class Database {
 	 */
 	function quote( $value ) {
 
+		if ( is_array( $value ) ) {
+			return implode( ", ", array_map( array( $this, 'quote' ), $value ) );
+		}
+
 		$value = $this->format( $value );
 
-		if ( $value === null ) {
-
-			return "NULL";
-
-		}
-
-		if ( $value === false ) {
-
-			return "'0'";
-
-		}
-
-		if ( $value === true ) {
-
-			return "'1'";
-
-		}
+		if ( $value === null ) return "NULL";
+		if ( $value === false ) return "'0'";
+		if ( $value === true ) return "'1'";
+		if ( $value instanceof Fragment ) return (string) $value;
 
 		if ( is_int( $value ) ) {
-
 			return "'" . ( (string) $value ) . "'";
-
 		}
 
 		if ( is_float( $value ) ) {
-
 			return "'" . sprintf( "%F", $value ) . "'";
-
 		}
 
-		if ( $value instanceof Literal ) {
-
-			return $value->value;
-
-		}
-
-		return $this->pdo->quote( $value );
+		return $this->fragment( $this->pdo->quote( $value ) );
 
 	}
 
@@ -1008,9 +622,7 @@ class Database {
 	function format( $value ) {
 
 		if ( $value instanceof \DateTime ) {
-
 			return $value->format( "Y-m-d H:i:s" );
-
 		}
 
 		return $value;
@@ -1025,6 +637,12 @@ class Database {
 	 */
 	function quoteIdentifier( $identifier ) {
 
+		if ( is_array( $identifier ) ) {
+			return implode( ", ", array_map( array( $this, 'quoteIdentifier' ), $identifier ) );
+		}
+
+		if ( $identifier instanceof Fragment ) return (string) $identifier;
+
 		$delimiter = $this->identifierDelimiter;
 
 		if ( empty( $delimiter ) ) return $identifier;
@@ -1036,19 +654,20 @@ class Database {
 			$identifier
 		);
 
-		return implode( ".", $identifier );
+		return $this->fragment( implode( ".", $identifier ) );
 
 	}
 
-	/**
-	 * Create a SQL Literal
-	 *
-	 * @param string $value
-	 * @return Literal
-	 */
-	function literal( $value ) {
+	// SQL style
 
-		return new Literal( $value );
+	/**
+	 * Get identifier delimiter
+	 *
+	 * @return string
+	 */
+	function identifierDelimiter() {
+
+		return $this->identifierDelimiter;
 
 	}
 
@@ -1062,59 +681,18 @@ class Database {
 	 */
 	function onQuery( $query, $params = array() ) {
 
-		if ( is_callable( $this->queryCallback ) ) {
-
-			call_user_func( $this->queryCallback, $query, $params );
-
+		if ( $this->onQuery ) {
+			call_user_func( $this->onQuery, $query, $params );
 		}
-
-	}
-
-	/**
-	 * Set the query callback
-	 *
-	 * @param callable $callback
-	 * @return $this
-	 */
-	function setQueryCallback( $callback ) {
-
-		$this->queryCallback = $callback;
-
-		return $this;
 
 	}
 
 	//
 
 	/** @var string */
-	protected $identifierDelimiter = "`";
-
-	//
-
-	/** @var array */
-	protected $primary = array();
-
-	/** @var array */
-	protected $references = array();
-
-	/** @var array */
-	protected $backReferences = array();
-
-	/** @var array */
-	protected $aliases = array();
-
-	/** @var array */
-	protected $required = array();
-
-	/** @var array */
-	protected $sequences = array();
+	protected $identifierDelimiter = '`';
 
 	/** @var null|callable */
-	protected $rewrite;
-
-	//
-
-	/** @var null|callable */
-	protected $queryCallback;
+	protected $onQuery;
 
 }
