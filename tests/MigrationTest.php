@@ -1,14 +1,15 @@
 <?php
 
 require_once 'vendor/autoload.php';
+require_once 'BaseTest.php';
 
-class MigrationTest extends PHPUnit_Framework_TestCase {
+class MigrationTest extends BaseTest {
 
 	function testHasProperty() {
 
-		$migration = $this->db()->migration( 'tests/migration.php' );
-		$migration->apply( "DROP TABLE lol" );
-		$migration->apply( "CREATE TABLE lol (id INT)" );
+		$migration = $this->db()->createMigration( 'tests/migration.php' );
+		$migration->apply( "drop", "DROP TABLE lol" );
+		$migration->apply( "create", "CREATE TABLE lol (id INT)" );
 
 		var_dump( json_encode( $migration ) );
 

@@ -65,9 +65,7 @@ class Context {
 	 * @return mixed
 	 */
 	function getCache( $key ) {
-
 		return isset( $this->_cache[ $key ] ) ? $this->_cache[ $key ] : null;
-
 	}
 
 	/**

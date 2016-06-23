@@ -72,12 +72,12 @@ class Database {
 		// ignore List suffix
 		$name = preg_replace( '/List$/', '', $name );
 
-		$select = $this( "SELECT &select FROM &table &where &order &limit", array(
-			'select' => $this( '*' ),
+		$select = $this( "SELECT &select FROM &table WHERE &where &orderBy &limit", array(
+			'select' => new Select( $this->db ),
 			'table' => $name,
-			'where' => $this( '' ),
-			'order' => $this( '' ),
-			'limit' => $this( '' )
+			'where' => new Conditional( $this->db ),
+			'orderBy' => new OrderBy( $this->db ),
+			'limit' =>  new Limit( $this->db )
 		) );
 
 		if ( $id !== null ) {
@@ -88,7 +88,7 @@ class Database {
 				$id = array( $primary => $id );
 			}
 
-			return $select->where( $id )->fetch();
+			return $select->where( $id )->first();
 
 		}
 
@@ -153,110 +153,29 @@ class Database {
 		return new Migration( $this, $path );
 	}
 
-	// PDO interface
-
 	/**
-	 * Prepare an SQL statement
-	 *
-	 * @param string $query
-	 * @return Statement
+	 * Run a transaction
 	 */
-	function prepare( $statement, $params = array() ) {
-		return $this( $statement, $params )->prepare();
-	}
+	function runTransaction( $fn ) {
 
-	/**
-	 * Execute an SQL statement directly
-	 *
-	 * @param string $query
-	 * @return Statement
-	 */
-	function exec( $statement, $params = array() ) {
-		return $this( $statement, $params )->exec();
-	}
+		if ( !is_callable( $fn ) ) {
+			throw new \LogicException( 'Transaction is not callable' );
+		}
 
-	/**
-	 * Begin a transaction
-	 *
-	 * @return bool
-	 */
-	function begin() {
-		return $this->pdo->beginTransaction();
-	}
+		$this->pdo->beginTransaction();
 
-	/**
-	 * Commit changes of transaction
-	 *
-	 * @return bool
-	 */
-	function commit() {
-		return $this->pdo->commit();
-	}
+		try {
+			$return = $fn();
+			$this->pdo->commit();
+			return $return;
+		} catch ( \Exception $ex ) {
+			$this->pdo->rollBack();
+			throw $ex;
+		}
 
-	/**
-	 * Rollback any changes during transaction
-	 *
-	 * @return bool
-	 */
-	function rollback() {
-		return $this->pdo->rollBack();
 	}
 
 	// Common statements
-
-	/**
-	 * Select rows from a table
-	 *
-	 * @param string $table
-	 * @param mixed $exprs
-	 * @param array $where
-	 * @param array $orderBy
-	 * @param int|null $limitCount
-	 * @param int|null $limitOffset
-	 * @param array $params
-	 * @return Result
-	 */
-	function select( $table, $options = array() ) {
-
-		$options = array_merge( array(
-			'expr' => null,
-			'where' => array(),
-			'orderBy' => array(),
-			'limitCount' => null,
-			'limitOffset' => null,
-			'params' => array()
-		), $options );
-
-		$query = "SELECT ";
-
-		if ( empty( $options[ 'expr' ] ) ) {
-
-			$query .= "*";
-
-		} else if ( is_array( $options[ 'expr' ] ) ) {
-
-			$query .= implode( ", ", $options[ 'expr' ] );
-
-		} else {
-
-			$query .= $options[ 'expr' ];
-
-		}
-
-		$table = $this->rewriteTable( $table );
-		$query .= " FROM " . $this->quoteIdentifier( $table );
-
-		$query .= $this->getSuffix( $options[ 'where' ], $options[ 'orderBy' ], $options[ 'limitCount' ], $options[ 'limitOffset' ] );
-
-		$this->onQuery( $query, $options[ 'params' ] );
-
-		$statement = $this->prepare( $query );
-		$statement->setFetchMode( \PDO::FETCH_ASSOC );
-		$statement->execute( $options[ 'params' ] );
-
-		return $statement;
-
-	}
 
 	/**
 	 * Insert one ore more rows into a table
@@ -477,45 +396,6 @@ class Database {
 	// SQL utility, mainly used internally
 
 	/**
-	 * Return WHERE/LIMIT/ORDER statement suffix
-	 *
-	 * @param array $where
-	 * @param array $orderBy
-	 * @param int|null $limitCount
-	 * @param int|null $limitOffset
-	 * @return string
-	 */
-	function getSuffix( $where, $orderBy = array(), $limitCount = null, $limitOffset = null ) {
-
-		$suffix = "";
-
-		if ( !empty( $where ) ) {
-			$w = array();
-			foreach ( $where as $key => $condition ) {
-				if ( !is_numeric( $key ) ) {
-					$condition = $this->is( $key, $condition );
-				}
-				$w[] = $condition;
-			}
-			$suffix .= " WHERE " . implode( " AND ", $w );
-		}
-
-		if ( !empty( $orderBy ) ) {
-			$suffix .= " ORDER BY " . implode( ", ", $orderBy );
-		}
-
-		if ( isset( $limitCount ) ) {
-			$suffix .= " LIMIT " . intval( $limitCount );
-			if ( isset( $limitOffset ) ) {
-				$suffix .= " OFFSET " . intval( $limitOffset );
-			}
-		}
-
-		return $this( $suffix );
-
-	}
-
-	/**
 	 * Build an SQL condition expressing that "$column is $value",
 	 * or "$column is in $value" if $value is an array. Handles null
 	 * and fragments like new Fragment( "NOW()" ) correctly.
@@ -691,17 +571,13 @@ class Database {
 
 	}
 
-	// SQL style
-
 	/**
 	 * Get identifier delimiter
 	 *
 	 * @return string
 	 */
 	function getIdentifierDelimiter() {
-
 		return $this->identifierDelimiter;
-
 	}
 
 	//

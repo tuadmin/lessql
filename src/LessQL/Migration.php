@@ -34,72 +34,49 @@ class Migration implements \JsonSerializable {
 	 * @param string $statement The statement to run
 	 * @return $this
 	 */
-	function apply( $action ) {
-
-		if ( is_callable( $action ) ) {
-			$this->db->begin();
-			try {
-				$action( $this );
-				$this->db->commit();
-			} catch ( \Exception $ex ) {
-				$this->break = true;
-				$this->log( 'failed', $action, $ex );
-				try {
-					$this->db->rollback();
-				} catch ( \Exception $ex2 ) {
-					$this->log( 'rollbackFailed', null, $ex2 );
-				}
-			}
-
-			return $this;
-		}
-
-		if ( $this->break ) {
-			return $this->log( 'skipped', $statement );
-		}
-
-		$s = $this->db->createFragment( $statement );
+	function apply( $id, $action, $params = null ) {
 
 		foreach ( $this->history as $item ) {
-			if ( $s->equals( $item[ 'statement' ] ) ) {
-				return $this->log( 'skipped', $statement );
+			if ( $id === @$item[ 'id' ] ) {
+				return $this->log( 'skipped', $id );
 			}
 		}
 
+		$self = $this;
+
 		try {
-
-			$this->db->exec( $statement );
-
-			$this->history[] = array(
-				'statement' => $statement,
-				'time' => time()
-			);
-
-			$this->save();
-
-			return $this->log( 'applied', $statement );
-
+			$this->db->runTransaction( function () use ( $self, $id, $action, $params ) {
+				if ( is_string( $action ) ) {
+					$this->db->createFragment( $action )->exec( $params );
+				} else {
+					$action( $self, $params );
+				}
+				$self->history( array( 'id' => $id ) )->log( 'applied', $id );
+			} );
 		} catch ( \Exception $ex ) {
+			throw $ex;
 			$this->break = true;
-			return $this->log( 'failed', $statement, $ex );
+			$this->log( 'failed', $id, $ex );
 		}
+
+		return $this;
 
 	}
 
 	/**
 	 * Get or add item to migration log
 	 *
-	 * @param string $status
+	 * @param string $message
 	 * @param string $statement
 	 * @param \Exception $ex
 	 * @return array
 	 */
-	function log( $status = null, $statement = null, $ex = null ) {
-		if ( $status === null ) return $this->log;
+	function log( $message = null, $id = null, $ex = null ) {
+		if ( $message === null ) return $this->log;
 
 		$this->log[] = array(
-			'status' => $status,
-			'statement' => $statement,
+			'message' => $message,
+			'id' => $id,
 			'ex' => $ex
 		);
 
@@ -107,21 +84,27 @@ class Migration implements \JsonSerializable {
 	}
 
 	/**
-	 * Get migration history
+	 * Get or add item to migration history
 	 *
 	 * @return array
 	 */
-	function history() {
-		return $this->history;
+	function history( $data = null ) {
+		if ( $data === null ) return $this->history;
+
+		$data[ 'time' ] = time();
+		$this->history[] = $data;
+
+		return $this->save();
 	}
 
 	/**
 	 * Save migration history
 	 *
-	 * @return int Bytes written
+	 * @return $this
 	 */
 	function save() {
-		return file_put_contents( $this->path, '<?php return ' . var_export( $this->history, true ) . ';' );
+		file_put_contents( $this->path, '<?php return ' . var_export( $this->history, true ) . ';' );
+		return $this;
 	}
 
 	//

@@ -6,7 +6,7 @@ namespace LessQL;
  * Represents an arbitrary SQL fragment with bound params.
  * Can be prepared and executed.
  */
-class Fragment {
+class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Constructor
@@ -54,13 +54,34 @@ class Fragment {
 	}
 
 	/**
-	 * Alias for exec
+	 * Execute statement and return result
 	 *
 	 * @param array $params
 	 * @return Result
 	 */
-	function fetch( $params = null ) {
+	function __invoke( $params = null ) {
 		return $this->exec( $params );
+	}
+
+	/**
+	 * Execute and return first row in result, if any
+	 */
+	function first() {
+		return $this->exec()->first();
+	}
+
+	/**
+	 * Executed and return affected rows, if any
+	 */
+	function affected() {
+		return $this->exec()->affected();
+	}
+
+	/**
+	 * Execute and return inserted id, if any
+	 */
+	function getInsertId() {
+		return $this->exec()->getInsertId();
 	}
 
 	/**
@@ -284,6 +305,106 @@ class Fragment {
 	function getParams() {
 		return $this->params;
 	}
+
+	//
+
+	/**
+	 * Add a SELECT expression
+	 *
+	 * @param string|array $expr
+	 * @param string|array $params
+	 * @return Result
+	 */
+	function select( $expr ) {
+		$select = isset( $this->params[ 'select' ] ) ? $this->params[ 'select' ] : new Select( $this->db );
+		return $this->bind( array( 'select' => $select->with( $expr ) ) );
+	}
+
+	/**
+	 * Add a WHERE condition (multiple are combined with AND)
+	 *
+	 * @param string|array $condition
+	 * @param string|array $params
+	 * @return Result
+	 */
+	function where( $condition, $params = array() ) {
+		$where = isset( $this->params[ 'where' ] ) ? $this->params[ 'where' ] : new Conditional( $this->db );
+		return $this->bind( array( 'where' => $where->with( $condition, $params ) ) );
+	}
+
+	/**
+	 * Add a "$column is not $value" condition to WHERE (multiple are combined with AND)
+	 *
+	 * @param string|array $column
+	 * @param string|array|null $value
+	 * @return $this
+	 */
+	function whereNot( $condition, $params = array() ) {
+		$where = isset( $this->params[ 'where' ] ) ? $this->params[ 'where' ] : new Conditional( $this->db );
+		return $this->bind( array( 'where' => $where->not( $condition, $params ) ) );
+	}
+
+	/**
+	 * Add an ORDER BY column and direction
+	 *
+	 * @param string $column
+	 * @param string $direction
+	 * @return $this
+	 */
+	function orderBy( $column, $direction = "ASC" ) {
+		$orderBy = isset( $this->params[ 'order' ] ) ? $this->params[ 'order' ] : new OrderBy( $this->db );
+		return $this->bind( array( 'orderBy' => $orderBy->with( $column, $direction ) ) );
+	}
+
+	/**
+	 * Set a result limit and optionally an offset
+	 *
+	 * @param int $count
+	 * @param int|null $offset
+	 * @return $this
+	 */
+	function limit( $count, $offset = null ) {
+		return $this->bind( array( 'limit' => new Limit( $this->db, $count, $offset ) ) );
+	}
+
+	/**
+	 * Set a paged limit
+	 * Pages start at 1
+	 *
+	 * @param int $pageSize
+	 * @param int $page
+	 * @return $this
+	 */
+	function paged( $pageSize, $page ) {
+		return $this->limit( $pageSize, ($page - 1) * $pageSize );
+	}
+
+	//
+
+	/**
+	 * IteratorAggregate
+	 *
+	 * @return \ArrayIterator
+	 */
+	function getIterator() {
+		return $this->exec()->getIterator();
+	}
+
+	/**
+	 * Countable
+	 */
+	function count() {
+		return $this->exec()->count();
+	}
+
+	/**
+	 * JsonSerializable
+	 */
+	function jsonSerialize() {
+		return $this->exec()->jsonSerialize();
+	}
+
+	//
 
 	const TOKEN_BACKTICK_QUOTED = 1;
 	const TOKEN_SINGLE_QUOTED = 2;

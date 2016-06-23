@@ -168,8 +168,8 @@ class DatabaseTest extends BaseTest {
 
 		$db = $this->db();
 
-		$result1 = $db->user()->fetch();
-		$result2 = $db->table( 'user' )->fetch();
+		$result1 = $db->user();
+		$result2 = $db->table( 'user' );
 
 		$row1 = $db->user( 1 );
 		$row2 = $db->table( 'user', 2 );
@@ -192,11 +192,11 @@ class DatabaseTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'dummy', array( 'foo' => 'bar' ), 'test' );
+		$row = $db->createRow( 'dummy', array( 'foo' => 'bar' ) );
 
 		$this->assertEquals( $row->getTable(), 'dummy' );
 		$this->assertEquals( $row->foo, 'bar' );
-		//$this->assertEquals( $row->getResult(), 'test' );
+		$this->assertEquals( $row->getResult(), 'test' );
 
 	}
 

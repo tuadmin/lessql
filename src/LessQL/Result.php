@@ -8,6 +8,9 @@ namespace LessQL;
  */
 class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
+	/**
+	 * Constructor, only for internal use
+	 */
 	function __construct( $statement, $source ) {
 		$this->statement = $statement;
 
@@ -21,42 +24,46 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$this->rows = array_map( array( $this, 'createRow' ), $this->rows );
 		$this->count = count( $this->rows );
 
-		$this->insertId = $this->statement->getDatabase()->getPdo()
-			->lastInsertId( /*$this->statement->getInsertSequence()*/ );
+		$this->insertId = $statement->getDatabase()->getPdo()
+			->lastInsertId( /*$statement->getInsertSequence()*/ );
 	}
 
 	/**
+	 * Return first row in result, if any
 	 *
+	 * @return Row
 	 */
 	function first() {
 		return $this->count > 0 ? $this->rows[ 0 ] : null;
 	}
 
 	/**
+	 * Return number of affected rows
 	 *
+	 * @return int
 	 */
 	function affected() {
 		return $this->affected;
 	}
 
 	/**
+	 * Return inserted id
 	 *
+	 * @return int|string
 	 */
 	function getInsertId() {
 		return $this->insertId;
 	}
 
 	/**
-	 *
+	 * Create row (internal use only)
 	 */
-	function createRow( $data ) {
-		return $this->statement->getDatabase()->createRow( $data, array(
-			'result' => $this
-		) );
+	protected function createRow( $data ) {
+		return $this->statement->getDatabase()->createRow( $this->getPrimaryTable(), $data );
 	}
 
 	/**
-	 *
+	 * Get primary table of statement
 	 */
 	function getPrimaryTable() {
 		return $this->statement->getPrimaryTable();

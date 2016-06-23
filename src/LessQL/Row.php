@@ -9,17 +9,22 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
 	 * Constructor
-	 * Use $db->row() instead
+	 * Use $db->createRow() instead
 	 *
+	 * @param Database|Fragment $dbOrStatement The database or the associated Statement
 	 * @param array $properties Associative row data, may include referenced rows
 	 * @param Result|null $result
 	 */
-	function __construct( $tableName, $properties = array(), $options = array() ) {
+	function __construct( $dbOrStatement, $table, $properties = array() ) {
 
-		if ( @$options[ 'statement' ] ) $this->_statement = $options[ 'statement' ];
-		if ( @$options[ 'table' ] ) $this->_table = $options[ 'table' ];
-		if ( @$options[ 'db' ] ) $this->_db = $options[ 'db' ];
+		if ( $dbOrStatement instanceof Fragment ) {
+			$this->_db = $dbOrStatement->getDatabase();
+			$this->_statement = $dbOrStatement;
+		} else {
+			$this->_db = $dbOrStatement;
+		}
 
+		$this->_table = $table;
 		$this->setData( $properties );
 
 	}
@@ -99,9 +104,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return bool
 	 */
 	function __isset( $column ) {
-
 		return isset( $this->_properties[ $column ] );
-
 	}
 
 	/**
@@ -112,10 +115,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return void
 	 */
 	function __unset( $column ) {
-
 		unset( $this->_properties[ $column ] );
 		unset( $this->_modified[ $column ] );
-
 	}
 
 	/**
@@ -630,17 +631,17 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function jsonSerialize() {
 
-		$array = array();
+		$json = array();
 
 		foreach ( $this->_properties as $key => $value ) {
 
 			if ( $value instanceof \JsonSerializable ) {
 
-				$array[ $key ] = $value->jsonSerialize();
+				$json[ $key ] = $value->jsonSerialize();
 
 			} else if ( $value instanceof \DateTime ) {
 
-				$array[ $key ] = $value->format( 'Y-m-d H:i:s' );
+				$json[ $key ] = $value->format( 'Y-m-d H:i:s' );
 
 			} else if ( is_array( $value ) ) { // list of Rows
 
@@ -648,17 +649,17 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 					$value[ $i ] = $row->jsonSerialize();
 				}
 
-				$array[ $key ] = $value;
+				$json[ $key ] = $value;
 
 			} else {
 
-				$array[ $key ] = $value;
+				$json[ $key ] = $value;
 
 			}
 
 		}
 
-		return $array;
+		return $json;
 
 	}
 

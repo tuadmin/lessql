@@ -5,7 +5,7 @@ namespace LessQL;
 /**
  * Represents a prepared SQL statement
  */
-class Prepared {
+class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * @param Fragment $statement
@@ -23,6 +23,29 @@ class Prepared {
 	function exec( $params = array() ) {
 		$this->pdoStatement->execute( array_merge( $this->statement->getParams(), $params ) );
 		return $this->statement->createResult( $this->pdoStatement );
+	}
+
+	/**
+	 * IteratorAggregate
+	 *
+	 * @return \ArrayIterator
+	 */
+	function getIterator() {
+		return $this->exec()->getIterator();
+	}
+
+	/**
+	 * Countable
+	 */
+	function count() {
+		return $this->exec()->count();
+	}
+
+	/**
+	 * JsonSerializable
+	 */
+	function jsonSerialize() {
+		return $this->exec()->jsonSerialize();
 	}
 
 	/** @var Fragment */

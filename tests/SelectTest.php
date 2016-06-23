@@ -31,8 +31,8 @@ class ResultTest extends BaseTest {
 
 		$this->assertNotNull( $post );
 
-		$author = $post->user()->via( 'author_id' )->fetch();
-		$editor = $post->user()->via( 'editor_id' )->fetch();
+		$author = $post->user()->via( 'author_id' )->first();
+		$editor = $post->user()->via( 'editor_id' )->first();
 		$posts = $author->postList()->via( 'author_id' );
 
 		$this->assertEquals( 1, $author->id );
@@ -262,19 +262,19 @@ class ResultTest extends BaseTest {
 
 		$db = $this->db();
 
-		$db->dummy()->where( 'test', null )->fetch();
-		$db->dummy()->where( 'test', 31 )->fetch();
-		$db->dummy()->whereNot( 'test', null )->fetch();
-		$db->dummy()->whereNot( 'test', 31 )->fetch();
-		$db->dummy()->where( 'test', array( 1, 2, 3 ) )->fetch();
-		$db->dummy()->where( 'test = 31' )->fetch();
-		$db->dummy()->where( 'test = ?', 31 )->fetch();
-		$db->dummy()->where( 'test = ?', array( 31 ) )->fetch();
-		$db->dummy()->where( 'test = :param', array( 'param' => 31 ) )->fetch();
+		$db->dummy()->where( 'test', null )->first();
+		$db->dummy()->where( 'test', 31 )->first();
+		$db->dummy()->whereNot( 'test', null )->first();
+		$db->dummy()->whereNot( 'test', 31 )->first();
+		$db->dummy()->where( 'test', array( 1, 2, 3 ) )->first();
+		$db->dummy()->where( 'test = 31' )->first();
+		$db->dummy()->where( 'test = ?', 31 )->first();
+		$db->dummy()->where( 'test = ?', array( 31 ) )->first();
+		$db->dummy()->where( 'test = :param', array( 'param' => 31 ) )->first();
 		$db->dummy()
 			->where( 'test < :a', array( 'a' => 31 ) )
 			->where( 'test > :b', array( 'b' => 0 ) )
-			->fetch();
+			->first();
 
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy` WHERE `test` IS NULL",
@@ -308,7 +308,7 @@ class ResultTest extends BaseTest {
 
 		$db = $this->db();
 
-		$db->dummy()->orderBy( 'id', 'DESC' )->orderBy( 'test' )->fetch();
+		$db->dummy()->orderBy( 'id', 'DESC' )->orderBy( 'test' )->first();
 
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy` ORDER BY `id` DESC, `test` ASC",
@@ -320,8 +320,8 @@ class ResultTest extends BaseTest {
 
 		$db = $this->db();
 
-		$db->dummy()->limit( 3 )->fetch();
-		$db->dummy()->limit( 3, 10 )->fetch();
+		$db->dummy()->limit( 3 )->first();
+		$db->dummy()->limit( 3, 10 )->first();
 
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy` LIMIT 3",
@@ -334,8 +334,8 @@ class ResultTest extends BaseTest {
 
 		$db = $this->db();
 
-		$db->dummy()->select( 'test' )->fetch();
-		$db->dummy()->select( 'test', 'id' )->fetch();
+		$db->dummy()->select( 'test' )->first();
+		$db->dummy()->select( 'test', 'id' )->first();
 
 		$this->assertEquals( array(
 			"SELECT test FROM `dummy`",
@@ -398,9 +398,9 @@ class ResultTest extends BaseTest {
 
 		foreach ( $db->post()->orderBy( 'date_published', 'DESC' ) as $post ) {
 
-			$author = $post->author()->fetch();
-			$editor = $post->editor()->fetch();
-			$editor2 = $post->editor( 'id > ?', 0 )->fetch();
+			$author = $post->author()->first();
+			$editor = $post->editor()->first();
+			$editor2 = $post->editor( 'id > ?', 0 )->first();
 
 			if ( $author ) $this->assertTrue( $author->exists() );
 			if ( $editor ) $this->assertTrue( $editor->exists() );
