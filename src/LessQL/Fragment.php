@@ -316,8 +316,10 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function select( $expr ) {
-		$select = isset( $this->params[ 'select' ] ) ? $this->params[ 'select' ] : new Select( $this->db );
-		return $this->bind( array( 'select' => $select->with( $expr ) ) );
+		$before = @$this->params[ '_select' ] ? $this->params[ '_select' ] : array();
+		return $this->bind( array(
+			'_select' => array_merge( $before, array( $this->quoteIdentifier( $expr ) ) )
+		) );
 	}
 
 	/**
@@ -328,8 +330,9 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function where( $condition, $params = array() ) {
-		$where = isset( $this->params[ 'where' ] ) ? $this->params[ 'where' ] : new Conditional( $this->db );
-		return $this->bind( array( 'where' => $where->with( $condition, $params ) ) );
+		return $this->bind( array(
+			'_where' => $this->db->where( $condition, $params, @$this->params[ '_where' ] )
+		) );
 	}
 
 	/**
@@ -339,9 +342,10 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @param string|array|null $value
 	 * @return $this
 	 */
-	function whereNot( $condition, $params = array() ) {
-		$where = isset( $this->params[ 'where' ] ) ? $this->params[ 'where' ] : new Conditional( $this->db );
-		return $this->bind( array( 'where' => $where->not( $condition, $params ) ) );
+	function whereNot( $key, $value = null ) {
+		return $this->bind( array(
+			'_where' => $this->db->whereNot( $condition, $params, @$this->params[ '_where' ] )
+		) );
 	}
 
 	/**
@@ -352,8 +356,9 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return $this
 	 */
 	function orderBy( $column, $direction = "ASC" ) {
-		$orderBy = isset( $this->params[ 'order' ] ) ? $this->params[ 'order' ] : new OrderBy( $this->db );
-		return $this->bind( array( 'orderBy' => $orderBy->with( $column, $direction ) ) );
+		return $this->bind( array(
+			'_orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ '_orderBy' ] )
+		) );
 	}
 
 	/**
@@ -363,8 +368,10 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @param int|null $offset
 	 * @return $this
 	 */
-	function limit( $count, $offset = null ) {
-		return $this->bind( array( 'limit' => new Limit( $this->db, $count, $offset ) ) );
+	function limit( $count = null, $offset = null ) {
+		return $this->bind( array(
+			'_limit' => $this->db->limit( $count, $offset )
+		) );
 	}
 
 	/**

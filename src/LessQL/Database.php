@@ -60,30 +60,30 @@ class Database {
 	}
 
 	/**
-	 * Returns a result for table $name.
+	 * Returns basic SELECT query for table $name.
 	 * If $id is given, return the row with that id.
 	 *
 	 * @param $name
 	 * @param int|null $id
 	 * @return Result|Row|null
 	 */
-	function table( $name, $id = null ) {
+	function table( $table, $id = null ) {
 
 		// ignore List suffix
-		$name = preg_replace( '/List$/', '', $name );
+		$table = preg_replace( '/List$/', '', $table );
 
 		$select = $this( "SELECT &select FROM &table WHERE &where &orderBy &limit", array(
-			'select' => new Select( $this->db ),
-			'table' => $name,
-			'where' => new Conditional( $this->db ),
-			'orderBy' => new OrderBy( $this->db ),
-			'limit' =>  new Limit( $this->db )
+			'_select' => $this( '*' ),
+			'_table' => $table,
+			'_where' => $this->where(),
+			'_orderBy' => $this(),
+			'_limit' => $this()
 		) );
 
 		if ( $id !== null ) {
 
 			if ( !is_array( $id ) ) {
-				$table = $this->getSchema()->getAlias( $name );
+				$table = $this->getSchema()->getAlias( $table );
 				$primary = $this->getSchema()->getPrimary( $table );
 				$id = array( $primary => $id );
 			}
@@ -394,6 +394,92 @@ class Database {
 	}
 
 	// SQL utility, mainly used internally
+
+	/**
+	 * Build a conditional expression fragment
+	 */
+	function where( $condition = null, $params = array(), $before = null ) {
+
+		// empty condition evaluates to true
+		if ( $condition === null ) {
+			return $this( $before ? $before : '(1=1)' );
+		}
+
+		// conditions in key-value array
+		if ( is_array( $condition ) ) {
+			$cond = $before;
+			foreach ( $condition as $k => $v ) {
+				$cond = $this->where( $k, $v, $cond );
+			}
+			return $cond;
+		}
+
+		// shortcut for basic "column is (in) value"
+		if ( preg_match( '/^[a-z0-9_.`"]+$/i', $condition ) ) {
+			$condition = $this->is( $condition, $params );
+		}
+
+		if ( $before ) return $this( '(' . $before . ') AND ' . $condition );
+
+		return $db( $condition, $params );
+
+	}
+
+	function whereNot( $key = null, $value = array(), $before = null ) {
+
+		// negated empty condition evaluates to false
+		if ( $key === null ) {
+			return $this( $before ? $before : '(1=0)' );
+		}
+
+		// key-value array
+		if ( is_array( $key ) ) {
+			$cond = $before;
+			foreach ( $key as $k => $v ) {
+				$cond = $this->whereNot( $k, $v, $cond );
+			}
+			return $cond;
+		}
+
+		// "column is not (in) value"
+		$condition = $this->isNot( $key, $value );
+
+		if ( $before ) return $this( '(' . $before . ') AND ' . $condition );
+
+		return $condition;
+
+	}
+
+	/**
+	 * Build a ORDER BY fragment
+	 */
+	function orderBy( $column, $direction = 'ASC', $before = null ) {
+
+		if ( !preg_match( '/^asc|desc$/i', $direction ) ) {
+			throw new \LogicException( 'Invalid ORDER BY direction: ' + $direction );
+		}
+
+		$before = $before ? ( $before . ', ' ) : 'ORDER BY ';
+		return $this( $before . $this->quoteIdentifier( $column ) . ' ' . $direction );
+
+	}
+
+	/**
+	 * Build a LIMIT fragment
+	 */
+	function limit( $count = null, $offset = null ) {
+
+		if ( $count !== null ) {
+			if ( $offset !== null ) {
+				return $this( 'LIMIT ' . intval( $count ) . ' OFFSET ' . intval( $offset ) );
+			} else {
+				return $this( 'LIMIT ' . intval( $count ) );
+			}
+		} else {
+			return $this();
+		}
+
+	}
 
 	/**
 	 * Build an SQL condition expressing that "$column is $value",
