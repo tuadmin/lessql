@@ -3,7 +3,7 @@
 require_once 'vendor/autoload.php';
 require_once 'BaseTest.php';
 
-class FragmentTest extends BaseTest {
+class SQLTest extends BaseTest {
 
 	function testEquals() {
 

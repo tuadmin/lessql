@@ -6,7 +6,7 @@ namespace LessQL;
  * Represents an arbitrary SQL fragment with bound params.
  * Can be prepared and executed.
  */
-class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
+class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Constructor
@@ -19,9 +19,12 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * @param array $params
-	 * @return Fragment
+	 * @return SQL
 	 */
-	function bind( $params ) {
+	function bind( $params, $value = null ) {
+		if ( count( func_get_args() ) > 1 ) {
+			return $this->bind( array( $params => $value ) );
+		}
 		$clone = clone $this;
 		$clone->params = array_merge( $clone->params, $params );
 		return $clone;
@@ -47,7 +50,7 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 		if ( $params ) return $this->bind( $params )->exec();
 
 		$resolved = $this->resolve();
-		var_dump( (string) $resolved );
+		$this->getDatabase()->beforeExec( $resolved );
 		$pdoStatement = $this->db->getPdo()->prepare( (string) $resolved );
 		$pdoStatement->execute( $resolved->getParams() );
 		return $this->createResult( $pdoStatement );
@@ -87,7 +90,7 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/**
 	 * Return fragment with params resolved and inserted into the fragment text
 	 *
-	 * @return Fragment
+	 * @return SQL
 	 */
 	function resolve() {
 
@@ -119,12 +122,15 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 						// only resolve non-preparable params here
 						if ( is_array( $param ) ) {
 							$p = $this->db->quoteValue( $param );
-						} else if ( $param instanceof Fragment ) {
+						} else if ( $param instanceof SQL ) {
 							$p = $param->resolve();
 						}
 						break;
 					}
 
+				} else if ( $prefix === '&' ) {
+					var_dump( $key );
+					throw new Exception( 'Undefined parameter ' + $key );
 				}
 
 			}
@@ -141,7 +147,7 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$params = $this->params;
 		foreach ( $unset as $key ) unset( $params[ $key ] );
 
-		return $this->db->createFragment( $resolved, $params );
+		return $this->db->createSQL( $resolved, $params );
 
 	}
 
@@ -154,57 +160,65 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Determine if this statement is equal to another.
-	 * Ignores whitespace, comments, and case of keywords and identifiers.
+	 * Query referenced data by name. Suffix "List" gets many rows
 	 *
-	 * @param string|Fragment
-	 * @return boolean
+	 * @param string $name
+	 * @param string|array|null $where
+	 * @param array $params
+	 * @return SQL
 	 */
-	function equals( $other ) {
-		return $this->getTokens() === $this->db->createFragment( $other )->getTokens();
+	function __call( $name, $args ) {
+		var_dump( $name );
+		array_unshift( $args, $name );
+		return call_user_func_array( array( $this, 'find' ), $args );
+	}
+
+	/**
+	 * Query referenced table. Suffix "List" gets many rows
+	 *
+	 * @param string $name
+	 * @param string|array|null $where
+	 * @param array $params
+	 * @return SQL
+	 */
+	function find( $name, $where = null, $params = array() ) {
+
+		$schema = $this->db->getSchema();
+		$fullName = $name;
+		$name = preg_replace( '/List$/', '', $fullName );
+		$table = $schema->getAlias( $name );
+		$single = $name === $fullName;
+
+		if ( $single ) {
+			$key = $schema->getPrimary( $table );
+			$parentKey = $schema->getReference( $this->getTable(), $name );
+		} else {
+			$key = $schema->getBackReference( $this->getTable(), $name );
+			$parentKey = $schema->getPrimary( $this->getTable() );
+		}
+
+		$query = $this->db->table( $table )->where( $key, $this->exec()->getKeys( $parentKey ) );
+		if ( $where !== null ) return $query->where( $where, $params );
+		return $query;
+
 	}
 
 	/**
 	 * Return primary table of this fragment
 	 *
-	 * @return Fragment|null
+	 * @return string|null
 	 */
-	function getPrimaryTable() {
-		if ( $this->primaryTable ) return $this->primaryTable;
+	function getTable() {
+		return @$this->params[ 'table' ];
+	}
 
-		$step = 0;
-		$table = "";
-
-		foreach ( $this->resolve()->getTokens() as $token ) {
-			list ( $type, $string ) = $token;
-
-			$valid =
-				$type === self::TOKEN_WORD ||
-				$type === self::TOKEN_BACKTICK_QUOTED ||
-				$type === self::TOKEN_DOUBLE_QUOTED;
-
-			if ( $step === 0 && $string === "from" ) {
-				++$step;
-			} else if ( $step === 1 && $valid ) {
-				$table .= $string;
-				++$step;
-			} else if ( $step === 2 ) {
-				if ( $string === "." ) {
-					$table .= ".";
-					++$step;
-				} else {
-					break;
-				}
-			} else if ( $step === 3 && $valid ) {
-				 $table .= $string;
-				 break;
-			} else {
-				$step = 0;
-				$table = "";
-			}
-		}
-
-		return $table ? $this->db->createFragment( $table ) : null;
+	/**
+	 * Return primary table of this fragment
+	 *
+	 * @return string|null
+	 */
+	function getSequence() {
+		return $this->db->getSchema()->getSequence( $this->getTable() );
 	}
 
 	//
@@ -289,21 +303,21 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Get SQL string of this fragment
-	 *
-	 * @return string
-	 */
-	function __toString() {
-		return $this->sql;
-	}
-
-	/**
 	 * Get fragment params
 	 *
 	 * @return array
 	 */
 	function getParams() {
 		return $this->params;
+	}
+
+	/**
+	 * Get SQL string of this fragment
+	 *
+	 * @return string
+	 */
+	function __toString() {
+		return $this->sql;
 	}
 
 	//
@@ -440,8 +454,5 @@ class Fragment implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/** @var array */
 	protected $cleanTokens;
-
-	/** @var string */
-	protected $primaryTable;
 
 }

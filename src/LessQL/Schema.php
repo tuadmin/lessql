@@ -61,6 +61,8 @@ class Schema {
 	 * @return string
 	 */
 	function getReference( $table, $name ) {
+		$table = (string) $table;
+		$name = (string) $name;
 		if ( isset( $this->references[ $table ][ $name ] ) ) {
 			return $this->references[ $table ][ $name ];
 		}
@@ -77,6 +79,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setReference( $table, $name, $key ) {
+		$table = (string) $table;
+		$name = (string) $name;
 		$this->references[ $table ][ $name ] = $key;
 		return $this;
 	}
@@ -93,6 +97,8 @@ class Schema {
 	 * @return string
 	 */
 	function getBackReference( $table, $name ) {
+		$table = (string) $table;
+		$name = (string) $name;
 		if ( isset( $this->backReferences[ $table ][ $name ] ) ) {
 			return $this->backReferences[ $table ][ $name ];
 		}
@@ -109,6 +115,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setBackReference( $table, $name, $key ) {
+		$table = (string) $table;
+		$name = (string) $name;
 		$this->backReferences[ $table ][ $name ] = $key;
 		return $this;
 	}
@@ -120,6 +128,7 @@ class Schema {
 	 * @return string
 	 */
 	function getAlias( $alias ) {
+		$alias = (string) $alias;
 		return isset( $this->aliases[ $alias ] ) ? $this->aliases[ $alias ] : $alias;
 	}
 
@@ -202,10 +211,8 @@ class Schema {
 	 * @return $this
 	 */
 	function setSequence( $table, $sequence ) {
-
 		$this->sequences[ $table ] = $sequence;
 		return $this;
-
 	}
 
 	/**

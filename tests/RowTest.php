@@ -5,11 +5,11 @@ require_once 'BaseTest.php';
 
 class RowTest extends BaseTest {
 
-	function testAccess() {
+	function xtestAccess() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array( 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
 
 		$row[ 'bar' ] = 1;
 		$row->baz = 2;
@@ -41,9 +41,7 @@ class RowTest extends BaseTest {
 		$a = array();
 
 		foreach ( $row as $key => $value ) {
-
 			$a[ $key ] = $value;
-
 		}
 
 		$ex = $row->getData();
@@ -52,11 +50,11 @@ class RowTest extends BaseTest {
 
 	}
 
-	function testClean() {
+	function xtestClean() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$this->assertEquals( array( 'name' => 'Foo Bar', 'id' => 42 ), $row->getModified() );
 		$this->assertEquals( null, $row->getOriginalid() );
@@ -71,22 +69,22 @@ class RowTest extends BaseTest {
 	}
 
 	/**
-	 * @expectedException \LogicException
+	 * @expectedException \LessQL\Exception
 	 */
 	function testCleanEx() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array( 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
 		$row->setClean();
 
 	}
 
-	function testId() {
+	function xtestId() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$a = array(
 			$row[ 'id' ],
@@ -115,16 +113,11 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array(), array( 'table' => 'categorization', 'db' => $db ) );
-
+		$row = $db->createRow( 'categorization' );
 		$a[] = $row->getId();
-
 		$row[ 'category_id' ] = 1;
-
 		$a[] = $row->getId();
-
 		$row[ 'post_id' ] = 2;
-
 		$a[] = $row->getId();
 
 		$ex = array(
@@ -137,11 +130,11 @@ class RowTest extends BaseTest {
 
 	}
 
-	function testData() {
+	function xtestData() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array(
+		$row = $db->createRow( 'post', array(
 			'title' => 'Fantasy Movie Review',
 			'user' => array(
 				'name' => 'Fantasy Guy'
@@ -156,18 +149,18 @@ class RowTest extends BaseTest {
 				)
 
 			)
-		), array( 'table' => 'post', 'db' => $db ) );
+		) );
 
 		$this->assertEquals( array( 'title' => 'Fantasy Movie Review' ), $row->getData() );
 		$this->assertEquals( array( 'title' => 'Fantasy Movie Review' ), $row->getModified() );
 
 	}
 
-	function testDelete() {
+	function xtestDelete() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array( 'id' => 42, 'name' => 'Foo Bar' ), array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$row->delete(); // does nothing
 
@@ -176,15 +169,15 @@ class RowTest extends BaseTest {
 
 		$this->assertFalse( $row->isClean() );
 		$this->assertFalse( $row->exists() );
-		$this->assertEquals( array( "DELETE FROM `user` WHERE `id` = '42'" ), $this->queries );
+		$this->assertEquals( array( "DELETE FROM `user` WHERE `id` = '42'" ), $this->statements );
 
 	}
 
-	function testSave() {
+	function xtestSave() {
 
 		$db = $this->db();
 
-		$row = $db->createRow( array(
+		$row = $db->createRow( 'post', array(
 			'title' => 'Fantasy Movie Review',
 			'author' => array(
 				'name' => 'Fantasy Guy'
@@ -202,11 +195,9 @@ class RowTest extends BaseTest {
 				)
 
 			)
-		), array( 'table' => 'post', 'db' => $db ) );
+		) );
 
-		$db->begin();
-		$row->save();
-		$db->commit();
+		$db->runTransaction( array( $row, 'save' ) );
 
 		$this->assertEquals( array(
 			"INSERT INTO `post` ( `title`, `author_id`, `editor_id` ) VALUES ( 'Fantasy Movie Review', NULL, NULL )",
@@ -217,11 +208,11 @@ class RowTest extends BaseTest {
 			"UPDATE `post` SET `author_id` = '4', `editor_id` = '5' WHERE `id` = '14'",
 			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '24' )",
 			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '25' )"
-		), $this->queries );
+		), $this->statements );
 
 	}
 
-	function testJsonSerialize() {
+	function xtestJsonSerialize() {
 
 		$db = $this->db();
 
@@ -241,7 +232,7 @@ class RowTest extends BaseTest {
 			)
 		);
 
-		$row = $db->createRow( $data, array( 'table' => 'user', 'db' => $db ) );
+		$row = $db->createRow( 'user', $data );
 
 		$a = $row->jsonSerialize();
 		$ex = $data;
@@ -253,7 +244,7 @@ class RowTest extends BaseTest {
 
 	//
 
-	function testReferenced() {
+	function xtestReferenced() {
 
 		$db = $this->db();
 
@@ -261,8 +252,8 @@ class RowTest extends BaseTest {
 
 		$this->assertNotNull( $post );
 
-		$author = $post->author()->fetch();
-		$categorizations = $post->categorizationList()->fetchAll();
+		$author = $post->author()->first();
+		$categorizations = $post->categorizationList();
 
 		$this->assertEquals( 1, $author->id );
 		$this->assertEquals( 2, count( $categorizations ) );
@@ -271,7 +262,7 @@ class RowTest extends BaseTest {
 			"SELECT * FROM `post` WHERE `id` = '11'",
 			"SELECT * FROM `user` WHERE `id` = '1'",
 			"SELECT * FROM `categorization` WHERE `post_id` = '11'",
-		), $this->queries );
+		), $this->statements );
 
 	}
 
@@ -280,6 +271,8 @@ class RowTest extends BaseTest {
 		$db = $this->db();
 
 		$category = $db->category( 21 );
+		$this->assertEquals( 21, $category->getOriginalId() );
+		$this->assertTrue( $category->exists() );
 
 		$this->assertNotNull( $category );
 		$this->assertEquals( 21, $category->id );
@@ -295,6 +288,11 @@ class RowTest extends BaseTest {
 			)
 		) );
 
+		$this->assertEquals( 'categorization', $row[ 'categorizationList' ][ 0 ]->getTable() );
+		$this->assertEquals( 'categorization', $row[ 'categorizationList' ][ 1 ]->getTable() );
+		$this->assertEquals( 'category', $row[ 'categorizationList' ][ 0 ][ 'category' ]->getTable() );
+		$this->assertEquals( 'category', $row[ 'categorizationList' ][ 1 ][ 'category' ]->getTable() );
+
 		// creates a post, two new categorizations, a new category
 		// and connects them all correctly
 		$row->save();
@@ -305,11 +303,11 @@ class RowTest extends BaseTest {
 			"INSERT INTO `category` ( `title` ) VALUES ( 'New Category' )",
 			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '21' )",
 			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '24' )",
-		), $this->queries );
+		), $this->statements );
 
 	}
 
-	function testEmptyRow() {
+	function xtestEmptyRow() {
 
 		$db = $this->db();
 
@@ -323,7 +321,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function testHasProperty() {
+	function xtestHasProperty() {
 
 		$db = $this->db();
 

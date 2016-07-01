@@ -18,24 +18,25 @@ class Database {
 		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
 		$this->pdo = $pdo;
 
-		if ( @$options[ 'identifierDelimiter' ] ) $this->identifierDelimiter = $options[ 'identifierDelimiter' ];
-		$this->onQuery = @$options[ 'onQuery' ];
-
 		$this->schema = new Schema( $this );
+		if ( @$options[ 'identifierDelimiter' ] ) {
+			$this->identifierDelimiter = $options[ 'identifierDelimiter' ];
+		}
+		$this->beforeExec = @$options[ 'beforeExec' ];
 
 	}
 
 	/**
-	 * Returns an SQL fragment
+	 * Create an SQL fragment from a string
 	 *
 	 * Examples:
 	 * $db( "SELECT * FROM post" )
 	 *
-	 * @param string|Fragment $sql
+	 * @param string|SQL $sql
 	 * @param array $params
 	 */
-	function __invoke( $sql, $params = array() ) {
-		return $this->createFragment( $sql, $params );
+	function __invoke( $sql = '', $params = array() ) {
+		return $this->createSQL( $sql, $params );
 	}
 
 	/**
@@ -51,12 +52,8 @@ class Database {
 	 * @return Result|Row|null
 	 */
 	function __call( $name, $args ) {
-
-		var_dump( $name );
-
 		array_unshift( $args, $name );
-		return call_user_func_array( array( $this, 'table' ), $args );
-
+		return call_user_func_array( array( $this, 'find' ), $args );
 	}
 
 	/**
@@ -67,14 +64,14 @@ class Database {
 	 * @param int|null $id
 	 * @return Result|Row|null
 	 */
-	function table( $table, $id = null ) {
+	function find( $table, $id = null ) {
 
 		// ignore List suffix
 		$table = preg_replace( '/List$/', '', $table );
 
-		$select = $this( "SELECT &select FROM &table WHERE &where &orderBy &limit", array(
+		$select = $this( "SELECT &_select FROM &table WHERE &_where &_orderBy &_limit", array(
 			'_select' => $this( '*' ),
-			'_table' => $table,
+			'table' => $table,
 			'_where' => $this->where(),
 			'_orderBy' => $this(),
 			'_limit' => $this()
@@ -96,206 +93,75 @@ class Database {
 
 	}
 
-	// Factories
-
 	/**
-	 * Create an SQL statement, optionally with bound params
+	 * Build an insert statement to insert a single row
 	 *
-	 * @param string $name
-	 * @param array $properties
-	 * @param Result|null $result
-	 * @return Fragment
+	 * @param string $table
+	 * @param array $row
+	 * @return SQL
 	 */
-	function createFragment( $sql, $params = array() ) {
-		if ( $sql instanceof Fragment ) return $sql->bind( $params );
-		return new Fragment( $this, $sql, $params );
+	function insert( $table, $row ) {
+		return $this->insertBatch( $table, array( $row ) );
 	}
 
 	/**
-	 * Create a prepared statement from a statement
+	 * Build single batch statement to insert multiple rows
 	 *
-	 * @param Statement $statement
-	 * @return Prepared
+	 * Create a single statement with multiple value lists
+	 * Supports SQL fragment parameters, but not supported by all drivers
+	 *
+	 * @param string $table
+	 * @param array $rows
+	 * @return SQL
 	 */
-	function createPrepared( $statement ) {
-		return new Prepared( $statement );
+	function insertBatch( $table, $rows ) {
+
+		$columns = $this->getColumns( $rows );
+		if ( empty( $columns ) ) return $this( self::NOOP );
+
+		return $this( "INSERT INTO &table ( &columns ) VALUES &values", array(
+			'table' => $table,
+			'columns' => $columns,
+			'values' => $this->getValueLists( $rows, $columns )
+		) );
+
 	}
 
 	/**
-	 * Create a row from given properties.
-	 * Optionally bind it to the given result.
+	 * Insert multiple rows using a prepared statement (directly executed)
 	 *
-	 * @param string $name
-	 * @param array $properties
-	 * @param Result|null $result
-	 * @return Row
-	 */
-	function createRow( $properties = array(), $options = array() ) {
-		return new Row( $properties, $options );
-	}
-
-	/**
-	 * Create a result bound to $parent using table or association $name.
-	 * $parent may be the database, a result, or a row
+	 * Prepare a statement and execute it once per row using bound params.
+	 * Does not support SQL fragments in row data.
 	 *
-	 * @param Database|Result|Row $parent
-	 * @param string $name
+	 * @param string $table
+	 * @param array $rows
 	 * @return Result
 	 */
-	function createResult( $statement, $source ) {
-		return new Result( $statement, $source );
-	}
-
-	/**
-	 * Create a migration
-	 */
-	function createMigration( $path ) {
-		return new Migration( $this, $path );
-	}
-
-	/**
-	 * Run a transaction
-	 */
-	function runTransaction( $fn ) {
-
-		if ( !is_callable( $fn ) ) {
-			throw new \LogicException( 'Transaction is not callable' );
-		}
-
-		$this->pdo->beginTransaction();
-
-		try {
-			$return = $fn();
-			$this->pdo->commit();
-			return $return;
-		} catch ( \Exception $ex ) {
-			$this->pdo->rollBack();
-			throw $ex;
-		}
-
-	}
-
-	// Common statements
-
-	/**
-	 * Insert one ore more rows into a table
-	 *
-	 * The $method parameter selects one of the following insert methods:
-	 *
-	 * "prepared": Prepare a query and execute it once per row using bound params
-	 *             Does not support Fragments in row data (PDO limitation)
-	 *
-	 * "batch":    Create a single query mit multiple value lists
-	 *             Supports Fragments, but not supported everywhere
-	 *
-	 * default:    Execute one INSERT per row
-	 *             Supports Fragments, supported everywhere, slow for many rows
-	 *
-	 * @param string $table
-	 * @param array $rows
-	 * @param string|null $method
-	 * @return Result|null
-	 */
-	function insert( $table, $rows, $method = null ) {
-
-		if ( empty( $rows ) ) return;
-		if ( !isset( $rows[ 0 ] ) ) $rows = array( $rows );
-
-		if ( $method === 'prepared' ) {
-			return $this->insertPrepared( $table, $rows );
-		} else if ( $method === 'batch' ) {
-			return $this->insertBatch( $table, $rows );
-		}
-
-		return $this->insertDefault( $table, $rows );
-
-	}
-
-	/**
-	 * Insert rows using a prepared query
-	 *
-	 * @param string $table
-	 * @param array $rows
-	 * @return Result|null
-	 */
-	protected function insertPrepared( $table, $rows ) {
+	function insertPrepared( $table, $rows ) {
 
 		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return;
 
-		$prepared = $this->insertHead( $table, $columns )
-			->bind( array( 'suffix' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" ) ) )
-			->prepare();
+		$prepared = $this( "INSERT INTO &table ( &columns ) VALUES &values", array(
+			'table' => $table,
+			'columns' => $columns,
+			'values' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" )
+		) )->prepare();
+
+		$result = $this( self::NOOP )->exec();
 
 		foreach ( $rows as $row ) {
-
 			$values = array();
 
 			foreach ( $columns as $column ) {
 				$values[] = (string) $this->formatValue( @$row[ $column ] );
 			}
 
-			$statement->exec( $values );
-
+			$result = $prepared->exec( $values );
 		}
 
-		return $statement;
-
-	}
-
-	/**
-	 * Insert rows using a single batch query
-	 *
-	 * @param string $table
-	 * @param array $rows
-	 * @return Result|null
-	 */
-	protected function insertBatch( $table, $rows ) {
-
-		$columns = $this->getColumns( $rows );
-		if ( empty( $columns ) ) return;
-
-		$insert = $this->insertHead( $table, $columns );
-		$lists = $this->getValueLists( $rows, $columns );
-		$insert->append( implode( ", ", $lists ) )->exec();
-
-	}
-
-	/**
-	 * Insert rows using one query per row
-	 *
-	 * @param string $table
-	 * @param array $rows
-	 * @return Result|null
-	 */
-	protected function insertDefault( $table, $rows ) {
-
-		$columns = $this->getColumns( $rows );
-		if ( empty( $columns ) ) return;
-
-		$insert = $this->insertHead( $table, $columns );
-		$lists = $this->getValueLists( $rows, $columns );
-
-		foreach ( $lists as $list ) {
-			$statement = $insert->append( $list )->exec();
-		}
-
-		return $statement; // last statement is returned
-
-	}
-
-	/**
-	 * Build head of INSERT query (without values)
-	 *
-	 * @param string $table
-	 * @param array $columns
-	 * @return string
-	 */
-	protected function insertHead( $table, $columns ) {
-
-		return $this->statement( "INSERT INTO &table ( &columns ) VALUES ", array(
-			'table' => $this->rewriteTable( $table )
-		) );
+		// return last result
+		return $result;
 
 	}
 
@@ -335,7 +201,7 @@ class Database {
 			foreach ( $columns as $column ) {
 				$values[] = $this->quoteValue( @$row[ $column ] );
 			}
-			$lists[] = "( " . implode( ", ", $values ) . " )";
+			$lists[] = $this( "( " . implode( ", ", $values ) . " )" );
 		}
 
 		return $lists;
@@ -343,7 +209,7 @@ class Database {
 	}
 
 	/**
-	 * Execute update query and return result
+	 * Build an update statement
 	 *
 	 * UPDATE $table SET $data [WHERE $where]
 	 *
@@ -357,23 +223,19 @@ class Database {
 
 		if ( empty( $data ) ) return;
 
-		$set = array();
-
-		foreach ( $data as $column => $value ) {
-			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
-		}
-
 		if ( !is_array( $where ) ) $where = array( $where );
 		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 3 );
 
-		$params[ 'table' ] = $this->rewriteTable( $table );
-
-		return $this->statement( "UPDATE &table SET " . implode( ", ", $set ) . $this->getSuffix( $where ), $params )->exec();
+		return $this( "UPDATE &table SET &set WHERE &_where &_limit", array(
+			'table' => $table,
+			'set' => $this->assign( $data ),
+			'_limit' => $this()
+		) )->where( $where, $params );
 
 	}
 
 	/**
-	 * Execute delete query and return result
+	 * Build a delete statement
 	 *
 	 * DELETE FROM $table [WHERE $where]
 	 *
@@ -387,13 +249,12 @@ class Database {
 		if ( !is_array( $where ) ) $where = array( $where );
 		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 2 );
 
-		$params[ 'table' ] = $this->rewriteTable( $table );
-
-		return $this->exec( "DELETE FROM &table" . $this->getSuffix( $where ), $params );
+		return $this( "DELETE FROM &table WHERE &_where &_limit", array(
+			'table' => $table,
+			'_limit' => $this()
+		) )->where( $where, $params );
 
 	}
-
-	// SQL utility, mainly used internally
 
 	/**
 	 * Build a conditional expression fragment
@@ -402,7 +263,7 @@ class Database {
 
 		// empty condition evaluates to true
 		if ( $condition === null ) {
-			return $this( $before ? $before : '(1=1)' );
+			return $this( $before ? $before : '1=1' );
 		}
 
 		// conditions in key-value array
@@ -417,19 +278,26 @@ class Database {
 		// shortcut for basic "column is (in) value"
 		if ( preg_match( '/^[a-z0-9_.`"]+$/i', $condition ) ) {
 			$condition = $this->is( $condition, $params );
+		} else {
+			$conditon = $this( $condition, $params );
 		}
 
-		if ( $before ) return $this( '(' . $before . ') AND ' . $condition );
+		if ( $before && (string) $before !== '1=1' ) {
+			return $this( '(' . $before . ') AND ' . $condition );
+		}
 
-		return $db( $condition, $params );
+		return $condition;
 
 	}
 
+	/**
+	 * Build a negated conditional expression fragment
+	 */
 	function whereNot( $key = null, $value = array(), $before = null ) {
 
-		// negated empty condition evaluates to false
+		// empty condition evaluates to true
 		if ( $key === null ) {
-			return $this( $before ? $before : '(1=0)' );
+			return $this( $before ? $before : '1=1' );
 		}
 
 		// key-value array
@@ -444,23 +312,27 @@ class Database {
 		// "column is not (in) value"
 		$condition = $this->isNot( $key, $value );
 
-		if ( $before ) return $this( '(' . $before . ') AND ' . $condition );
+		if ( $before && (string) $before !== '1=1' ) {
+			return $this( '(' . $before . ') AND ' . $condition );
+		}
 
 		return $condition;
 
 	}
 
 	/**
-	 * Build a ORDER BY fragment
+	 * Build an ORDER BY fragment
 	 */
 	function orderBy( $column, $direction = 'ASC', $before = null ) {
 
 		if ( !preg_match( '/^asc|desc$/i', $direction ) ) {
-			throw new \LogicException( 'Invalid ORDER BY direction: ' + $direction );
+			throw new Exception( 'Invalid ORDER BY direction: ' + $direction );
 		}
 
-		$before = $before ? ( $before . ', ' ) : 'ORDER BY ';
-		return $this( $before . $this->quoteIdentifier( $column ) . ' ' . $direction );
+		return $this(
+			$before ? ( $before . ', ' ) : 'ORDER BY ' .
+			$this->quoteIdentifier( $column ) . ' ' . $direction
+		);
 
 	}
 
@@ -470,21 +342,28 @@ class Database {
 	function limit( $count = null, $offset = null ) {
 
 		if ( $count !== null ) {
+
+			$count = intval( $count );
+			if ( $count < 1 ) throw new Exception( 'Invalid LIMIT count: ' + $count );
+
 			if ( $offset !== null ) {
-				return $this( 'LIMIT ' . intval( $count ) . ' OFFSET ' . intval( $offset ) );
-			} else {
-				return $this( 'LIMIT ' . intval( $count ) );
+				$offset = intval( $offset );
+				if ( $offset < 0 ) throw new Exception( 'Invalid LIMIT offset: ' + $offset );
+
+				return $this( 'LIMIT ' . $count . ' OFFSET ' . $offset );
 			}
-		} else {
-			return $this();
+
+			return $this( 'LIMIT ' . $count );
 		}
+
+		return $this();
 
 	}
 
 	/**
 	 * Build an SQL condition expressing that "$column is $value",
 	 * or "$column is in $value" if $value is an array. Handles null
-	 * and fragments like new Fragment( "NOW()" ) correctly.
+	 * and fragments like new SQL( "NOW()" ) correctly.
 	 *
 	 * @param string $column
 	 * @param string|array $value
@@ -556,7 +435,7 @@ class Database {
 	/**
 	 * Build an SQL condition expressing that "$column is not $value"
 	 * or "$column is not in $value" if $value is an array. Handles null
-	 * and fragments like new Fragment( "NOW()" ) correctly.
+	 * and fragments like new SQL( "NOW()" ) correctly.
 	 *
 	 * @param string $column
 	 * @param string|array $value
@@ -567,17 +446,17 @@ class Database {
 	}
 
 	/**
-	 * Build a SET instruction, e.g. for UPDATE
+	 * Build an assignment fragment, e.g. for UPDATE
 	 */
-	function getSet( $data ) {
+	function assign( $data ) {
 
-		$set = array();
+		$assign = array();
 
 		foreach ( $data as $column => $value ) {
-			$set[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
+			$assign[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
 		}
 
-		return $this( implode( ", ", $set ) );
+		return $this( implode( ", ", $assign ) );
 
 	}
 
@@ -593,20 +472,15 @@ class Database {
 			return implode( ", ", array_map( array( $this, 'quoteValue' ), $value ) );
 		}
 
+		if ( $value instanceof SQL ) return $value;
+		if ( $value === null ) return $this( 'NULL' );
+
 		$value = $this->formatValue( $value );
 
-		if ( $value === null ) return "NULL";
-		if ( $value === false ) return "'0'";
-		if ( $value === true ) return "'1'";
-		if ( $value instanceof Fragment ) return (string) $value;
-
-		if ( is_int( $value ) ) {
-			return "'" . ( (string) $value ) . "'";
-		}
-
-		if ( is_float( $value ) ) {
-			return "'" . sprintf( "%F", $value ) . "'";
-		}
+		if ( is_int( $value ) ) $value = (string) $value;
+		if ( is_float( $value ) ) $value = sprintf( '%F', $value );
+		if ( $value === false ) $value = '0';
+		if ( $value === true ) $value = '1';
 
 		return $this( $this->pdo->quote( $value ) );
 
@@ -621,7 +495,9 @@ class Database {
 	function formatValue( $value ) {
 
 		if ( $value instanceof \DateTime ) {
-			return $value->format( "Y-m-d H:i:s" );
+			$value = clone $value;
+			$value->setTimeZone( new \DateTimeZone( 'UTC' ) );
+			return $value->format( 'Y-m-d H:i:s' );
 		}
 
 		return $value;
@@ -640,7 +516,7 @@ class Database {
 			return implode( ", ", array_map( array( $this, 'quoteIdentifier' ), $identifier ) );
 		}
 
-		if ( $identifier instanceof Fragment ) return (string) $identifier;
+		if ( $identifier instanceof SQL ) return $identifier;
 
 		$delimiter = $this->identifierDelimiter;
 
@@ -657,29 +533,84 @@ class Database {
 
 	}
 
-	/**
-	 * Get identifier delimiter
-	 *
-	 * @return string
-	 */
-	function getIdentifierDelimiter() {
-		return $this->identifierDelimiter;
-	}
-
 	//
 
 	/**
-	 * Calls the query callback, if any
-	 *
-	 * @param string $query
-	 * @param array $params
+	 * Run a transaction
 	 */
-	function onQuery( $query, $params = array() ) {
+	function runTransaction( $fn ) {
 
-		if ( $this->onQuery ) {
-			call_user_func( $this->onQuery, $query, $params );
+		if ( !is_callable( $fn ) ) {
+			throw new Exception( 'Transaction is not callable' );
 		}
 
+		$this->pdo->beginTransaction();
+
+		try {
+			$return = $fn( $this );
+			$this->pdo->commit();
+			return $return;
+		} catch ( \Exception $ex ) {
+			$this->pdo->rollBack();
+			throw $ex;
+		}
+
+	}
+
+	// Factories
+
+	/**
+	 * Create an SQL statement, optionally with bound params
+	 *
+	 * @param string $name
+	 * @param array $properties
+	 * @param Result|null $result
+	 * @return SQL
+	 */
+	function createSQL( $sql, $params = array() ) {
+		if ( $sql instanceof SQL ) return $sql->bind( $params );
+		return new SQL( $this, $sql, $params );
+	}
+
+	/**
+	 * Create a prepared statement from a statement
+	 *
+	 * @param Statement $statement
+	 * @return Prepared
+	 */
+	function createPrepared( $statement ) {
+		return new Prepared( $statement );
+	}
+
+	/**
+	 * Create a row from given properties.
+	 *
+	 * @param string $table
+	 * @param array $properties
+	 * @param Result|null $result
+	 * @return Row
+	 */
+	function createRow( $table, $properties = array() ) {
+		return new Row( $this, $table, $properties );
+	}
+
+	/**
+	 * Create a result bound to $parent using table or association $name.
+	 * $parent may be the database, a result, or a row
+	 *
+	 * @param Database|Result|Row $parent
+	 * @param string $name
+	 * @return Result
+	 */
+	function createResult( $statement, $source ) {
+		return new Result( $statement, $source );
+	}
+
+	/**
+	 * Create a migration
+	 */
+	function createMigration( $path ) {
+		return new Migration( $this, $path );
 	}
 
 	//
@@ -700,18 +631,44 @@ class Database {
 		return $this->schema;
 	}
 
+	/**
+	 * Get identifier delimiter
+	 *
+	 * @return string
+	 */
+	function getIdentifierDelimiter() {
+		return $this->identifierDelimiter;
+	}
+
+	//
+
+	/**
+	 * Call the beforeExec hook, if any
+	 *
+	 * @param string $sql
+	 * @param array $params
+	 */
+	function beforeExec( $sql ) {
+		if ( $this->beforeExec ) {
+			call_user_func( $this->beforeExec, $sql );
+		}
+	}
+
 	//
 
 	/** @var \PDO */
 	protected $pdo;
 
+	/** @var Schema */
+	protected $schema;
+
 	/** @var string */
 	protected $identifierDelimiter = '`';
 
 	/** @var null|callable */
-	protected $onQuery;
+	protected $beforeExec;
 
-	/** @var Schema */
-	protected $schema;
+	/** */
+	const NOOP = 'SELECT 1 WHERE 1=0';
 
 }

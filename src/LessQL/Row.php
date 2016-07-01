@@ -11,13 +11,13 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * Constructor
 	 * Use $db->createRow() instead
 	 *
-	 * @param Database|Fragment $dbOrStatement The database or the associated Statement
+	 * @param Database|SQL $dbOrStatement The database or the associated Statement
 	 * @param array $properties Associative row data, may include referenced rows
 	 * @param Result|null $result
 	 */
 	function __construct( $dbOrStatement, $table, $properties = array() ) {
 
-		if ( $dbOrStatement instanceof Fragment ) {
+		if ( $dbOrStatement instanceof SQL ) {
 			$this->_db = $dbOrStatement->getDatabase();
 			$this->_statement = $dbOrStatement;
 		} else {
@@ -30,13 +30,6 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	}
 
 	/**
-	 * Return statement associated with this row, if any
-	 */
-	function getStatement() {
-		return $this->_statement;
-	}
-
-	/**
 	 * Get a property
 	 *
 	 * @param string $column
@@ -45,10 +38,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function &__get( $column ) {
 
 		if ( !isset( $this->_properties[ $column ] ) ) {
-
 			$null = null;
 			return $null;
-
 		}
 
 		return $this->_properties[ $column ];
@@ -64,9 +55,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function __set( $column, $value ) {
 
 		if ( isset( $this->_properties[ $column ] ) && $this->_properties[ $column ] === $value ) {
-
 			return;
-
 		}
 
 		// convert arrays to Rows or list of Rows
@@ -74,7 +63,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		if ( is_array( $value ) ) {
 
 			$name = preg_replace( '/List$|_list$/', '', $column );
-			$table = $this->getDatabase()->getAlias( $name );
+			$table = $this->getDatabase()->getSchema()->getAlias( $name );
 
 			if ( $name === $column ) { // row
 
@@ -83,9 +72,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			} else { // list
 
 				foreach ( $value as $i => $v ) {
-
 					$value[ $i ] = $this->getDatabase()->createRow( $table, $v );
-
 				}
 
 			}
@@ -128,34 +115,39 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return mixed
 	 */
 	function __call( $name, $args ) {
-
+		//var_dump( $name );
 		array_unshift( $args, $name );
-
-		return call_user_func_array( array( $this, 'referenced' ), $args );
-
+		return call_user_func_array( array( $this, 'find' ), $args );
 	}
 
 	/**
-	 * Get referenced row(s) by name. Suffix "List" gets many rows using
-	 * a back reference.
+	 * Query referenced data.
+	 * Suffix "List" gets many rows using a back reference.
 	 *
 	 * @param string $name
 	 * @param string|array|null $where
 	 * @param array $params
 	 * @return Result
 	 */
-	function referenced( $name, $where = null, $params = array() ) {
+	function find( $name, $where = null, $params = array() ) {
 
-		$result = $this->getDatabase()->createResult( $this, $name );
+		$schema = $this->getDatabase()->getSchema();
+		$fullName = $name;
+		$name = preg_replace( '/List$/', '', $fullName );
+		$table = $schema->getAlias( $name );
+		$single = $name === $fullName;
 
-		if ( $where !== null ) {
-
-			if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 2 );
-			$result = $result->where( $where, $params );
-
+		if ( $single ) {
+			$key = $schema->getPrimary( $table );
+			$parentKey = $schema->getReference( $this->_table, $name );
+		} else {
+			$key = $schema->getBackReference( $this->_table, $name );
+			$parentKey = $schema->getPrimary( $this->_table );
 		}
 
-		return $result;
+		$query = $this->getDatabase()->find( $table )->where( $key, $this[ $parentKey ] );
+		if ( $where !== null ) return $query->where( $where, $params );
+		return $query;
 
 	}
 
@@ -166,7 +158,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function getId() {
 
-		$primary = $this->getDatabase()->getPrimary( $this->getTable() );
+		$primary = $this->getDatabase()->getSchema()->getPrimary( $this->getTable() );
 
 		if ( is_array( $primary ) ) {
 
@@ -260,11 +252,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 *
 	 * @param bool $recursive
 	 * @return $this
-	 * @throws \LogicException
+	 * @throws Exception
 	 */
 	function save( $recursive = true ) {
 
 		$db = $this->getDatabase();
+		$schema = $db->getSchema();
 		$table = $this->getTable();
 
 		if ( !$recursive ) { // just save the row
@@ -273,7 +266,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 			if ( !$this->isClean() ) {
 
-				$primary = $db->getPrimary( $table );
+				$primary = $schema->getPrimary( $table );
 
 				if ( $this->exists() ) {
 
@@ -283,19 +276,15 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 						$idCondition = array( $primary => $idCondition );
 					}
 
-					$db->table( $table )
-						->where( $idCondition )
-						->update( $this->getModified() );
-
+					$db->update( $table, $this->getModified(), $idCondition )->exec();
 					$this->setClean();
 
 				} else {
 
-					$db->table( $table )
-						->insert( $this->getData() );
+					$result = $db->insert( $table, $this->getData() )->exec();
 
 					if ( !is_array( $primary ) && !isset( $this[ $primary ] ) ) {
-						$id = $db->lastInsertId( $db->getSequence( $table ) );
+						$id = $result->getInsertId();
 						if ( isset( $id ) ) $this[ $primary ] = $id;
 					}
 
@@ -342,7 +331,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 			if ( !$solvable ) {
 
-				throw new \LogicException(
+				throw new Exception(
 					'Cannot recursively save structure (' . $table . ') - add required values or allow NULL'
 				);
 
@@ -396,7 +385,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 			if ( $value instanceof Row ) {
 
-				$key = $db->getReference( $this->getTable(), $column );
+				$key = $db->getSchema()->getReference( $this->getTable(), $column );
 				$this[ $key ] = $value->getId();
 
 			}
@@ -424,7 +413,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 			if ( is_array( $value ) ) {
 
-				$key = $db->getBackReference( $this->getTable(), $column );
+				$key = $db->getSchema()->getBackReference( $this->getTable(), $column );
 
 				foreach ( $value as $row ) {
 					$row->{ $key } = $id;
@@ -446,7 +435,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function getMissing() {
 
 		$missing = array();
-		$required = $this->getDatabase()->getRequired( $this->getTable() );
+		$required = $this->getDatabase()->getSchema()->getRequired( $this->getTable() );
 
 		foreach ( $required as $column => $true ) {
 
@@ -480,24 +469,17 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		$db = $this->getDatabase();
 		$table = $this->getTable();
-
-		$result = $db->table( $table );
-
 		$idCondition = $this->getOriginalId();
 
 		if ( $idCondition === null ) return $this;
 
 		if ( !is_array( $idCondition ) ) {
-
-			$primary = $db->getPrimary( $table );
+			$primary = $db->getSchema()->getPrimary( $table );
 			$idCondition = array( $primary => $idCondition );
-
 		}
 
-		$result->where( $idCondition )->delete();
-
+		$db->delete( $table, $idCondition )->exec();
 		$this->_originalId = null;
-
 		return $this->setDirty();
 
 	}
@@ -530,7 +512,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		$id = $this->getId();
 
 		if ( $id === null ) {
-			throw new \LogicException( 'Cannot set Row "clean" without id' );
+			throw new Exception( 'Cannot set row "clean" without id' );
 		}
 
 		$this->_originalId = $id;
@@ -556,8 +538,14 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return Database
 	 */
 	function getDatabase() {
-		if ( $this->_db ) return $this->_db;
-		return $this->_statement->getDatabase();
+		return $this->_db;
+	}
+
+	/**
+	 * Return statement associated with this row, if any
+	 */
+	function getStatement() {
+		return $this->_statement;
 	}
 
 	/**
@@ -566,8 +554,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return string
 	 */
 	function getTable() {
-		if ( $this->_table ) return $this->_table;
-		if ( $this->_statement ) return $this->_statement->getPrimaryTable();
+		return $this->_table;
 	}
 
 	/**

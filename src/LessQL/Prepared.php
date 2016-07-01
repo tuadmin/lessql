@@ -8,7 +8,7 @@ namespace LessQL;
 class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
-	 * @param Fragment $statement
+	 * @param SQL $statement
 	 */
 	function __construct( $statement ) {
 		$this->statement = $statement->resolve();
@@ -36,6 +36,8 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Countable
+	 *
+	 * @return int
 	 */
 	function count() {
 		return $this->exec()->count();
@@ -43,12 +45,14 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * JsonSerializable
+	 *
+	 * @return array
 	 */
 	function jsonSerialize() {
 		return $this->exec()->jsonSerialize();
 	}
 
-	/** @var Fragment */
+	/** @var SQL */
 	protected $statement;
 
 	/** @var \PDOStatement */

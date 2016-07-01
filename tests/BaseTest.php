@@ -218,7 +218,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function setUp() {
 
-		$this->queries = array();
+		$this->statements = array();
 		$this->params = array();
 
 	}
@@ -226,7 +226,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	function db( $identifierDelimiter = '`' ) {
 
 		$db = new \LessQL\Database( self::pdo(), array(
-			'onQuery' => array( $this, 'onQuery' ),
+			'beforeExec' => array( $this, 'beforeExec' ),
 			'identifierDelimiter' => $identifierDelimiter
 		) );
 
@@ -242,11 +242,16 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	}
 
-	function onQuery( $query, $params ) {
+	function beforeExec( $sql ) {
 
-		if ( substr( $query, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
+		$statement = trim( (string) $sql );
+		$params = $sql->getParams();
 
-		$this->queries[] = str_replace( '"', '`', $query );
+		var_dump( $statement );
+
+		if ( substr( $statement, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
+
+		$this->statements[] = str_replace( '"', '`', $statement );
 		$this->params[] = $params;
 
 	}
@@ -260,6 +265,10 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function testDummy() {
 
+	}
+
+	function str( $mixed ) {
+		return (string) $mixed;
 	}
 
 }

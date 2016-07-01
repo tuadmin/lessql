@@ -25,7 +25,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$this->count = count( $this->rows );
 
 		$this->insertId = $statement->getDatabase()->getPdo()
-			->lastInsertId( /*$statement->getInsertSequence()*/ );
+			->lastInsertId( $statement->getSequence() );
 	}
 
 	/**
@@ -55,18 +55,26 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		return $this->insertId;
 	}
 
+	function getKeys( $key ) {
+
+		$keys = array();
+
+		foreach ( $this->rows as $row ) {
+			if ( $row->__isset( $key ) ) {
+				$keys[] = $row->__get( $key );
+			}
+		}
+
+		return array_values( array_unique( $keys ) );
+	}
+
 	/**
 	 * Create row (internal use only)
 	 */
 	protected function createRow( $data ) {
-		return $this->statement->getDatabase()->createRow( $this->getPrimaryTable(), $data );
-	}
-
-	/**
-	 * Get primary table of statement
-	 */
-	function getPrimaryTable() {
-		return $this->statement->getPrimaryTable();
+		return $this->statement->getDatabase()
+			->createRow( $this->statement->getTable(), $data )
+			->setClean();
 	}
 
 	//
@@ -96,7 +104,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	//
 
-	/** @var Fragment */
+	/** @var SQL */
 	protected $statement;
 
 	/** @var array */

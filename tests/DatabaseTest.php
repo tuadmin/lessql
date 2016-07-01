@@ -9,8 +9,9 @@ class DatabaseTest extends BaseTest {
 
 		$db = $this->db();
 
-		$a = array(
+		$a = array_map( array( $this, 'str' ), array(
 			$db->quoteValue( null ),
+			$db->quoteValue( $db( 'NULL' ) ),
 			$db->quoteValue( false ),
 			$db->quoteValue( true ),
 			$db->quoteValue( 0 ),
@@ -20,10 +21,12 @@ class DatabaseTest extends BaseTest {
 			$db->quoteValue( '1' ),
 			$db->quoteValue( 'foo' ),
 			$db->quoteValue( '' ),
+			$db->quoteValue( $db() ),
 			$db->quoteValue( $db( 'BAR' ) ),
-		);
+		) );
 
 		$ex = array(
+			"NULL",
 			"NULL",
 			"'0'",
 			"'1'",
@@ -34,6 +37,7 @@ class DatabaseTest extends BaseTest {
 			"'1'",
 			"'foo'",
 			"''",
+			"",
 			"BAR",
 		);
 
@@ -70,29 +74,9 @@ class DatabaseTest extends BaseTest {
 
 		$db = $this->db();
 
-		$db->begin();
-		$db->rollback();
+		$db->runTransaction( function ( $db ) {
 
-		$db->begin();
-		$db->commit();
-
-	}
-
-	function testPrepare() {
-
-		$db = $this->db();
-
-		$prepared = $db->prepare( 'SELECT * FROM user' );
-		$this->assertInstanceOf( '\LessQL\Prepared', $prepared );
-
-	}
-
-	function testExec() {
-
-		$db = $this->db();
-
-		$result = $db->exec( 'SELECT * FROM user' );
-		$this->assertInstanceOf( '\LessQL\Result', $result );
+		} );
 
 	}
 
@@ -164,22 +148,22 @@ class DatabaseTest extends BaseTest {
 
 	}
 
-	function testTable() {
+	function testFind() {
 
 		$db = $this->db();
 
 		$result1 = $db->user();
-		$result2 = $db->table( 'user' );
+		$result2 = $db->find( 'user' );
 
 		$row1 = $db->user( 1 );
-		$row2 = $db->table( 'user', 2 );
+		$row2 = $db->find( 'user', 2 );
 
 		$ex = array( 'user', 'user', 'user', 'user', 1, 2 );
 		$a = array(
-			$result1->getPrimaryTable(),
-			$result2->getPrimaryTable(),
-			$row1->getPrimaryTable(),
-			$row2->getPrimaryTable(),
+			(string) $result1->getTable(),
+			(string) $result2->getTable(),
+			(string) $row1->getTable(),
+			(string) $row2->getTable(),
 			$row1[ 'id' ],
 			$row2[ 'id' ]
 		);
@@ -194,9 +178,9 @@ class DatabaseTest extends BaseTest {
 
 		$row = $db->createRow( 'dummy', array( 'foo' => 'bar' ) );
 
+		var_dump( $row->getTable() );
 		$this->assertEquals( $row->getTable(), 'dummy' );
 		$this->assertEquals( $row->foo, 'bar' );
-		$this->assertEquals( $row->getResult(), 'test' );
 
 	}
 

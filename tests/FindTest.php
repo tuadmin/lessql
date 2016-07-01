@@ -3,7 +3,7 @@
 require_once 'vendor/autoload.php';
 require_once 'BaseTest.php';
 
-class ResultTest extends BaseTest {
+class FindTest extends BaseTest {
 
 	function testPrimary() {
 
@@ -504,7 +504,6 @@ class ResultTest extends BaseTest {
 	function testBadReference() {
 
 		$db = $this->db();
-
 		$db->user()->post()->fetchAll();
 
 	}
