@@ -48,12 +48,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function exec( $params = null ) {
 		if ( $params ) return $this->bind( $params )->exec();
-
-		$resolved = $this->resolve();
-		$this->getDatabase()->beforeExec( $resolved );
-		$pdoStatement = $this->db->getPdo()->prepare( (string) $resolved );
-		$pdoStatement->execute( $resolved->getParams() );
-		return $this->createResult( $pdoStatement );
+		if ( $this->eager ) return $this->eager->exec();
+		return $this->db->exec( $this );
 	}
 
 	/**
@@ -88,7 +84,217 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Return fragment with params resolved and inserted into the fragment text
+	 * Query referenced table. Suffix "List" gets many rows
+	 *
+	 * @param string $name
+	 * @param string|array|null $where
+	 * @param array $params
+	 * @return SQL
+	 */
+	function __call( $name, $args ) {
+		var_dump( $name );
+		array_unshift( $args, $name );
+		return call_user_func_array( array( $this, 'query' ), $args );
+	}
+
+	/**
+	 * Query referenced table. Suffix "List" gets many rows
+	 *
+	 * @param string $name
+	 * @param string|array|null $where
+	 * @param array $params
+	 * @return SQL
+	 */
+	function query( $name, $where = null, $params = array() ) {
+
+		$schema = $this->db->getSchema();
+		$fullName = $name;
+		$name = preg_replace( '/List$/', '', $fullName );
+		$table = $schema->getAlias( $name );
+		$single = $name === $fullName;
+
+		if ( $single ) {
+			$key = $schema->getPrimary( $table );
+			$parentKey = $schema->getReference( $this->getTable(), $name );
+		} else {
+			$key = $schema->getBackReference( $this->getTable(), $name );
+			$parentKey = $schema->getPrimary( $this->getTable() );
+		}
+
+		$query = $this->db->query( $table )->eager(
+			$key,
+			$this->exec()->getKeys( $parentKey ),
+			$this->getTable(),
+			$parentKey,
+			$single
+		);
+
+		if ( $where !== null ) return $query->where( $where, $params );
+		return $query;
+
+	}
+
+	//
+
+	/**
+	 * Add a SELECT expression
+	 *
+	 * @param string|array $expr
+	 * @param string|array $params
+	 * @return Result
+	 */
+	function select( $expr ) {
+		$before = (string) @$this->params[ '_select' ] === '*' ? array() : $this->params[ '_select' ];
+		return $this->bind( array(
+			'_select' => array_merge( $before, func_get_args() )
+		) );
+	}
+
+	/**
+	 * Add a WHERE condition (multiple are combined with AND)
+	 *
+	 * @param string|array $condition
+	 * @param string|array $params
+	 * @return Result
+	 */
+	function where( $condition, $params = array() ) {
+		return $this->bind( array(
+			'_where' => $this->db->where( $condition, $params, @$this->params[ '_where' ] )
+		) );
+	}
+
+	/**
+	 * Add a "$column is not $value" condition to WHERE (multiple are combined with AND)
+	 *
+	 * @param string|array $column
+	 * @param string|array|null $value
+	 * @return $this
+	 */
+	function whereNot( $key, $value = null ) {
+		return $this->bind( array(
+			'_where' => $this->db->whereNot( $key, $value, @$this->params[ '_where' ] )
+		) );
+	}
+
+	/**
+	 * Add an ORDER BY column and direction
+	 *
+	 * @param string $column
+	 * @param string $direction
+	 * @return $this
+	 */
+	function orderBy( $column, $direction = "ASC" ) {
+		return $this->bind( array(
+			'_orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ '_orderBy' ] )
+		) );
+	}
+
+	/**
+	 * Set a result limit and optionally an offset
+	 *
+	 * @param int $count
+	 * @param int|null $offset
+	 * @return $this
+	 */
+	function limit( $count = null, $offset = null ) {
+		return $this->bind( array(
+			'_limit' => $this->db->limit( $count, $offset )
+		) );
+	}
+
+	/**
+	 * Set a paged limit
+	 * Pages start at 1
+	 *
+	 * @param int $pageSize
+	 * @param int $page
+	 * @return $this
+	 */
+	function paged( $pageSize, $page ) {
+		return $this->limit( $pageSize, ( $page - 1 ) * $pageSize );
+	}
+
+	/**
+	 *
+	 */
+	function eager( $key, $value, $parentTable, $parentKey, $single ) {
+		$clone = clone $this;
+		$clone->eager = $this->db->createEager( $clone, $key, $value, $parentTable, $parentKey, $single );
+		return $clone;
+	}
+
+	/**
+	 *
+	 */
+	function via( $key ) {
+		$clone = clone $this;
+		$clone->eager = $this->eager->via( $key );
+		return $clone;
+	}
+
+	/**
+	 * Return primary table of this fragment
+	 *
+	 * @return string|null
+	 */
+	function getTable() {
+		return @$this->params[ 'table' ];
+	}
+
+	/**
+	 * @return Database
+	 */
+	function getDatabase() {
+		return $this->db;
+	}
+
+	/**
+	 * Get fragment params
+	 *
+	 * @return array
+	 */
+	function getParams() {
+		return $this->params;
+	}
+
+	/**
+	 * Get SQL string of this fragment
+	 *
+	 * @return string
+	 */
+	function __toString() {
+		return $this->sql;
+	}
+
+	//
+
+	/**
+	 * IteratorAggregate
+	 *
+	 * @return \ArrayIterator
+	 */
+	function getIterator() {
+		return $this->exec()->getIterator();
+	}
+
+	/**
+	 * Countable
+	 */
+	function count() {
+		return $this->exec()->count();
+	}
+
+	/**
+	 * JsonSerializable
+	 */
+	function jsonSerialize() {
+		return $this->exec()->jsonSerialize();
+	}
+
+	//
+
+	/**
+	 * Return SQL fragment with resolved params
 	 *
 	 * @return SQL
 	 */
@@ -150,78 +356,6 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		return $this->db->createSQL( $resolved, $params );
 
 	}
-
-	/**
-	 * @param array|\PDOStatement $source
-	 * @return Result
-	 */
-	function createResult( $source ) {
-		return $this->db->createResult( $this, $source );
-	}
-
-	/**
-	 * Query referenced data by name. Suffix "List" gets many rows
-	 *
-	 * @param string $name
-	 * @param string|array|null $where
-	 * @param array $params
-	 * @return SQL
-	 */
-	function __call( $name, $args ) {
-		var_dump( $name );
-		array_unshift( $args, $name );
-		return call_user_func_array( array( $this, 'find' ), $args );
-	}
-
-	/**
-	 * Query referenced table. Suffix "List" gets many rows
-	 *
-	 * @param string $name
-	 * @param string|array|null $where
-	 * @param array $params
-	 * @return SQL
-	 */
-	function find( $name, $where = null, $params = array() ) {
-
-		$schema = $this->db->getSchema();
-		$fullName = $name;
-		$name = preg_replace( '/List$/', '', $fullName );
-		$table = $schema->getAlias( $name );
-		$single = $name === $fullName;
-
-		if ( $single ) {
-			$key = $schema->getPrimary( $table );
-			$parentKey = $schema->getReference( $this->getTable(), $name );
-		} else {
-			$key = $schema->getBackReference( $this->getTable(), $name );
-			$parentKey = $schema->getPrimary( $this->getTable() );
-		}
-
-		$query = $this->db->table( $table )->where( $key, $this->exec()->getKeys( $parentKey ) );
-		if ( $where !== null ) return $query->where( $where, $params );
-		return $query;
-
-	}
-
-	/**
-	 * Return primary table of this fragment
-	 *
-	 * @return string|null
-	 */
-	function getTable() {
-		return @$this->params[ 'table' ];
-	}
-
-	/**
-	 * Return primary table of this fragment
-	 *
-	 * @return string|null
-	 */
-	function getSequence() {
-		return $this->db->getSchema()->getSequence( $this->getTable() );
-	}
-
-	//
 
 	/**
 	 * This is probably a non-standard, insane hack. Works great though.
@@ -295,136 +429,6 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	}
 
-	/**
-	 * @return Database
-	 */
-	function getDatabase() {
-		return $this->db;
-	}
-
-	/**
-	 * Get fragment params
-	 *
-	 * @return array
-	 */
-	function getParams() {
-		return $this->params;
-	}
-
-	/**
-	 * Get SQL string of this fragment
-	 *
-	 * @return string
-	 */
-	function __toString() {
-		return $this->sql;
-	}
-
-	//
-
-	/**
-	 * Add a SELECT expression
-	 *
-	 * @param string|array $expr
-	 * @param string|array $params
-	 * @return Result
-	 */
-	function select( $expr ) {
-		$before = @$this->params[ '_select' ] ? $this->params[ '_select' ] : array();
-		return $this->bind( array(
-			'_select' => array_merge( $before, array( $this->quoteIdentifier( $expr ) ) )
-		) );
-	}
-
-	/**
-	 * Add a WHERE condition (multiple are combined with AND)
-	 *
-	 * @param string|array $condition
-	 * @param string|array $params
-	 * @return Result
-	 */
-	function where( $condition, $params = array() ) {
-		return $this->bind( array(
-			'_where' => $this->db->where( $condition, $params, @$this->params[ '_where' ] )
-		) );
-	}
-
-	/**
-	 * Add a "$column is not $value" condition to WHERE (multiple are combined with AND)
-	 *
-	 * @param string|array $column
-	 * @param string|array|null $value
-	 * @return $this
-	 */
-	function whereNot( $key, $value = null ) {
-		return $this->bind( array(
-			'_where' => $this->db->whereNot( $condition, $params, @$this->params[ '_where' ] )
-		) );
-	}
-
-	/**
-	 * Add an ORDER BY column and direction
-	 *
-	 * @param string $column
-	 * @param string $direction
-	 * @return $this
-	 */
-	function orderBy( $column, $direction = "ASC" ) {
-		return $this->bind( array(
-			'_orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ '_orderBy' ] )
-		) );
-	}
-
-	/**
-	 * Set a result limit and optionally an offset
-	 *
-	 * @param int $count
-	 * @param int|null $offset
-	 * @return $this
-	 */
-	function limit( $count = null, $offset = null ) {
-		return $this->bind( array(
-			'_limit' => $this->db->limit( $count, $offset )
-		) );
-	}
-
-	/**
-	 * Set a paged limit
-	 * Pages start at 1
-	 *
-	 * @param int $pageSize
-	 * @param int $page
-	 * @return $this
-	 */
-	function paged( $pageSize, $page ) {
-		return $this->limit( $pageSize, ($page - 1) * $pageSize );
-	}
-
-	//
-
-	/**
-	 * IteratorAggregate
-	 *
-	 * @return \ArrayIterator
-	 */
-	function getIterator() {
-		return $this->exec()->getIterator();
-	}
-
-	/**
-	 * Countable
-	 */
-	function count() {
-		return $this->exec()->count();
-	}
-
-	/**
-	 * JsonSerializable
-	 */
-	function jsonSerialize() {
-		return $this->exec()->jsonSerialize();
-	}
-
 	//
 
 	const TOKEN_BACKTICK_QUOTED = 1;
@@ -454,5 +458,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/** @var array */
 	protected $cleanTokens;
+
+	/** @var Eager|null */
+	protected $eager;
+
+	/** @var string */
+	protected $parent;
 
 }

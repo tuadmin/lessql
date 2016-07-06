@@ -9,6 +9,22 @@ class Schema {
 	}
 
 	/**
+	 *
+	 */
+	function addTables( $tables ) {
+		foreach ( $tables as $table ) {
+			$this->tables[ $table ] = true;
+		}
+	}
+
+	/**
+	 *
+	 */
+	function hasTable( $table ) {
+		return empty( $this->tables ) || @$this->tables[ $table ];
+	}
+
+	/**
 	 * Get primary key of a table, may be array for compound keys
 	 *
 	 * Convention is "id"
@@ -245,6 +261,9 @@ class Schema {
 
 	/** @var Database */
 	protected $db;
+
+	/** @var array */
+	protected $tables = array();
 
 	/** @var array */
 	protected $primary = array();

@@ -17,12 +17,24 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Execute statement and return result
+	 *
 	 * @param array $params
 	 * @return Result
 	 */
 	function exec( $params = array() ) {
 		$this->pdoStatement->execute( array_merge( $this->statement->getParams(), $params ) );
 		return $this->statement->createResult( $this->pdoStatement );
+	}
+
+	/**
+	 * Execute statement and return result
+	 *
+	 * @param array $params
+	 * @return Result
+	 */
+	function __invoke( $params = null ) {
+		return $this->exec( $params );
 	}
 
 	/**

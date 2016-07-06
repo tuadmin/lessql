@@ -231,6 +231,13 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		) );
 
 		$schema = $db->getSchema();
+		$schema->addTables( array(
+			'post',
+			'user',
+			'category',
+			'categorization',
+			'dummy'
+		) );
 		$schema->setAlias( 'author', 'user' );
 		$schema->setAlias( 'editor', 'user' );
 		$schema->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );

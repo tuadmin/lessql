@@ -115,9 +115,9 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return mixed
 	 */
 	function __call( $name, $args ) {
-		//var_dump( $name );
+		var_dump( $name );
 		array_unshift( $args, $name );
-		return call_user_func_array( array( $this, 'find' ), $args );
+		return call_user_func_array( array( $this, 'query' ), $args );
 	}
 
 	/**
@@ -129,7 +129,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @param array $params
 	 * @return Result
 	 */
-	function find( $name, $where = null, $params = array() ) {
+	function query( $name, $where = null, $params = array() ) {
 
 		$schema = $this->getDatabase()->getSchema();
 		$fullName = $name;
@@ -145,7 +145,14 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			$parentKey = $schema->getPrimary( $this->_table );
 		}
 
-		$query = $this->getDatabase()->find( $table )->where( $key, $this[ $parentKey ] );
+		$query = $this->getDatabase()->query( $table )->eager(
+			$key,
+			$this[ $parentKey ],
+			$this->getTable(),
+			$parentKey,
+			$single
+		);
+
 		if ( $where !== null ) return $query->where( $where, $params );
 		return $query;
 

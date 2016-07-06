@@ -58,25 +58,19 @@ class SchemaTest extends BaseTest {
 			return 'dummy';
 		} );
 
-		try {
-			$db->begin();
-			$db->post()->fetchAll();
-			$db->user()->insert( array( 'test' => 42 ) );
-			$db->category()->update( array( 'test' => 42 ) );
-			$db->post()->delete();
-			$db->user()->sum( 'test' );
-			$db->commit();
-		} catch ( \PDOException $ex ) {
-			$db->rollback();
-		}
+		$db->runTransaction( function ( $db ) {
+			$db->post()->exec();
+			$db->insert( 'user', array( 'test' => 42 ) )->exec();
+			$db->update( 'category', array( 'test' => 42 ) );
+			$db->delete( 'post' );
+		} );
 
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy`",
 			"INSERT INTO `dummy` ( `test` ) VALUES ( '42' )",
 			"UPDATE `dummy` SET `test` = '42'",
 			"DELETE FROM `dummy`",
-			"SELECT SUM(test) FROM `dummy`",
-		), $this->queries );
+		), $this->statements );
 
 	}
 

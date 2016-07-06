@@ -52,8 +52,14 @@ class Database {
 	 * @return Result|Row|null
 	 */
 	function __call( $name, $args ) {
+
+		$schema = $this->getSchema();
+		if ( !$schema->hasTable( $name ) ) {
+			throw new Exception( 'Unknown table: ' . $name );
+		}
+
 		array_unshift( $args, $name );
-		return call_user_func_array( array( $this, 'find' ), $args );
+		return call_user_func_array( array( $this, 'query' ), $args );
 	}
 
 	/**
@@ -64,10 +70,7 @@ class Database {
 	 * @param int|null $id
 	 * @return Result|Row|null
 	 */
-	function find( $table, $id = null ) {
-
-		// ignore List suffix
-		$table = preg_replace( '/List$/', '', $table );
+	function query( $table, $id = null ) {
 
 		$select = $this( "SELECT &_select FROM &table WHERE &_where &_orderBy &_limit", array(
 			'_select' => $this( '*' ),
@@ -139,16 +142,16 @@ class Database {
 	 */
 	function insertPrepared( $table, $rows ) {
 
+		$result = $this( self::NOOP )->exec();
+
 		$columns = $this->getColumns( $rows );
-		if ( empty( $columns ) ) return;
+		if ( empty( $columns ) ) return $result;
 
 		$prepared = $this( "INSERT INTO &table ( &columns ) VALUES &values", array(
 			'table' => $table,
 			'columns' => $columns,
 			'values' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" )
 		) )->prepare();
-
-		$result = $this( self::NOOP )->exec();
 
 		foreach ( $rows as $row ) {
 			$values = array();
@@ -221,7 +224,7 @@ class Database {
 	 */
 	function update( $table, $data, $where = array(), $params = array() ) {
 
-		if ( empty( $data ) ) return;
+		if ( empty( $data ) ) return $this( self::NOOP );
 
 		if ( !is_array( $where ) ) $where = array( $where );
 		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 3 );
@@ -279,7 +282,7 @@ class Database {
 		if ( preg_match( '/^[a-z0-9_.`"]+$/i', $condition ) ) {
 			$condition = $this->is( $condition, $params );
 		} else {
-			$conditon = $this( $condition, $params );
+			$condition = $this( $condition, $params );
 		}
 
 		if ( $before && (string) $before !== '1=1' ) {
@@ -293,12 +296,7 @@ class Database {
 	/**
 	 * Build a negated conditional expression fragment
 	 */
-	function whereNot( $key = null, $value = array(), $before = null ) {
-
-		// empty condition evaluates to true
-		if ( $key === null ) {
-			return $this( $before ? $before : '1=1' );
-		}
+	function whereNot( $key, $value = array(), $before = null ) {
 
 		// key-value array
 		if ( is_array( $key ) ) {
@@ -330,7 +328,7 @@ class Database {
 		}
 
 		return $this(
-			$before ? ( $before . ', ' ) : 'ORDER BY ' .
+			( $before && (string) $before !== '' ? ( $before . ', ' ) : 'ORDER BY ' ) .
 			$this->quoteIdentifier( $column ) . ' ' . $direction
 		);
 
@@ -602,8 +600,8 @@ class Database {
 	 * @param string $name
 	 * @return Result
 	 */
-	function createResult( $statement, $source ) {
-		return new Result( $statement, $source );
+	function createResult( $statement, $source, $insertId = null ) {
+		return new Result( $statement, $source, $insertId );
 	}
 
 	/**
@@ -611,6 +609,13 @@ class Database {
 	 */
 	function createMigration( $path ) {
 		return new Migration( $this, $path );
+	}
+
+	/**
+	 * Create an eager loading policy
+	 */
+	function createEager( $query, $key, $value, $parentTable, $parentKey, $single ) {
+		return new Eager( $query, $key, $value, $parentTable, $parentKey, $single );
 	}
 
 	//
@@ -643,15 +648,65 @@ class Database {
 	//
 
 	/**
-	 * Call the beforeExec hook, if any
+	 * Internal. Execute an SQL statement and return the result
 	 *
-	 * @param string $sql
-	 * @param array $params
+	 * @param SQL $sql
 	 */
-	function beforeExec( $sql ) {
-		if ( $this->beforeExec ) {
-			call_user_func( $this->beforeExec, $sql );
+	function exec( $sql, $params = array() ) {
+
+		$resolved = $this( $sql, $params )->resolve();
+
+		// skip NOOP
+		if ( (string) $resolved === self::NOOP ) {
+			return $this->createResult( $this(), array() );
 		}
+
+		// try cache
+		$key = json_encode( array( (string) $resolved, $resolved->getParams() ) );
+		$result = @$this->resultCache[ $key ];
+		if ( $result ) return $result;
+
+		if ( $this->beforeExec ) {
+			call_user_func( $this->beforeExec, $resolved );
+		}
+
+		// execute statement via PDO
+		$pdoStatement = $this->pdo->prepare( (string) $resolved );
+		$pdoStatement->execute( $resolved->getParams() );
+		$sequence = $this->getSchema()->getSequence( $resolved->getTable() );
+		$insertId = $this->pdo->lastInsertId( $sequence );
+
+		$result = $this->resultCache[ $key ] = $this->createResult( $sql, $pdoStatement, $insertId );
+		return $result;
+
+	}
+
+	/**
+	 * Internal. Get known keys from result cache
+	 */
+	function getKnownKeys( $table, $column ) {
+
+		$keys = array();
+
+		foreach ( $this->resultCache as $result ) {
+			if ( $result->getTable() === $table ) {
+				foreach ( $result as $row ) {
+					$keys[] = $row[ $column ];
+				}
+			}
+		}
+
+		return array_values( array_unique( $keys ) );
+
+	}
+
+	/**
+	 * Return new database context with empty cache
+	 */
+	function clear() {
+		$clone = clone $this;
+		$clone->resultCache = array();
+		return $clone;
 	}
 
 	//
@@ -667,6 +722,9 @@ class Database {
 
 	/** @var null|callable */
 	protected $beforeExec;
+
+	/** @var array */
+	protected $resultCache = array();
 
 	/** */
 	const NOOP = 'SELECT 1 WHERE 1=0';

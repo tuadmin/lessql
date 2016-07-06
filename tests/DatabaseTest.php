@@ -148,15 +148,15 @@ class DatabaseTest extends BaseTest {
 
 	}
 
-	function testFind() {
+	function testQuery() {
 
 		$db = $this->db();
 
 		$result1 = $db->user();
-		$result2 = $db->find( 'user' );
+		$result2 = $db->query( 'user' );
 
 		$row1 = $db->user( 1 );
-		$row2 = $db->find( 'user', 2 );
+		$row2 = $db->query( 'user', 2 );
 
 		$ex = array( 'user', 'user', 'user', 'user', 1, 2 );
 		$a = array(
@@ -178,9 +178,211 @@ class DatabaseTest extends BaseTest {
 
 		$row = $db->createRow( 'dummy', array( 'foo' => 'bar' ) );
 
-		var_dump( $row->getTable() );
 		$this->assertEquals( $row->getTable(), 'dummy' );
 		$this->assertEquals( $row->foo, 'bar' );
+
+	}
+
+	function testInsert() {
+
+		$db = $this->db();
+
+		$db->runTransaction( function ( $db ) {
+			$db->insert( 'dummy', array() )->exec(); // does nothing
+			$db->insert( 'dummy', array( 'id' => 1, 'test' => 42 ) )->exec();
+			foreach ( array(
+				array( 'id' => 2,  'test' => 1 ),
+				array( 'id' => 3,  'test' => 2 ),
+				array( 'id' => 4,  'test' => 3 )
+			) as $row ) $db->insert( 'dummy', $row )->exec();
+		} );
+
+		$this->assertEquals( array(
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '1', '42' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '2', '1' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '3', '2' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '4', '3' )"
+		), $this->statements );
+
+	}
+
+	function testInsertPrepared() {
+
+		$db = $this->db();
+
+		$db->runTransaction( function ( $db ) {
+			$db->insertPrepared( 'dummy', array(
+				array( 'test' => 1 ),
+				array( 'test' => 2 ),
+				array( 'test' => 3 )
+			) );
+		} );
+
+		$this->assertEquals( array(
+			"INSERT INTO `dummy` ( `test` ) VALUES ( ? )",
+			"INSERT INTO `dummy` ( `test` ) VALUES ( ? )",
+			"INSERT INTO `dummy` ( `test` ) VALUES ( ? )"
+		), $this->statements );
+
+		$this->assertEquals( array(
+			array( 1 ),
+			array( 2 ),
+			array( 3 ),
+		), $this->params );
+
+	}
+
+	function testInsertBatch() {
+
+		$db = $this->db();
+
+		// not supported by sqlite < 3.7, skip
+
+		try {
+
+			$db->runTransaction( function ( $db ) {
+				$db->insertBatch( 'dummy', array(
+					array( 'test' => 1 ),
+					array( 'test' => 2 ),
+					array( 'test' => 3 )
+				) )->exec();
+			} );
+
+		} catch ( \Exception $ex ) {
+			// ignore
+		}
+
+		$this->assertEquals( array(
+			"INSERT INTO `dummy` ( `test` ) VALUES ( '1' ), ( '2' ), ( '3' )",
+		), $this->statements );
+
+	}
+
+	function testUpdate() {
+
+		$db = $this->db();
+		$self = $this;
+
+		$db->runTransaction( function ( $db ) use ( $self ) {
+			$db->update( 'dummy', array() )->exec();
+			$db->update( 'dummy', array( 'test' => 42 ) )->exec();
+			$db->update( 'dummy', array( 'test' => 42 ) )->where( 'test', 1 )->exec();
+
+			$statements = $self->statements;
+			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) );
+			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) );
+			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) );
+			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) );
+			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) );
+			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) );
+			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) );
+			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) );
+			$self->statements = $statements;
+		} );
+
+		$db->runTransaction( function ( $db ) {
+			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->update( array( 'test' => 42 ) );
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->update( array( 'test' => 42 ) );
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->update( array( 'test' => 42 ) );
+		} );
+
+		$this->assertEquals( array(
+			"UPDATE `dummy` SET `test` = '42'",
+			"UPDATE `dummy` SET `test` = '42' WHERE `test` = '1'",
+			"SELECT * FROM `dummy` WHERE test > 42 LIMIT 2 OFFSET 2",
+			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '4', '5' )",
+			"SELECT * FROM `dummy` WHERE test > 42 ORDER BY `test` ASC LIMIT 2",
+			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '6', '1' )",
+			"UPDATE `dummy` SET `test` = '42' WHERE test > 42"
+		), $this->statements );
+
+	}
+
+	function testUpdatePrimary() {
+
+		$db = $this->db();
+
+		$db->runTransaction( function ( $db ) {
+			$db->update( 'category', array( 'title' => 'Test Category' ) )
+				->where( 'id > 21' )
+				->limit( 2 )
+				->exec();
+		} );
+
+		$this->assertEquals( array(
+			"SELECT * FROM `category` WHERE id > 21 LIMIT 2",
+			"UPDATE `category` SET `title` = 'Test Category' WHERE `id` IN ( '22', '23' )",
+		), $this->statements );
+
+	}
+
+	function testDelete() {
+
+		$db = $this->db();
+		$self = $this;
+
+		$db->runTransaction( function ( $db ) use ( $self ) {
+			$db->dummy()->delete();
+			$db->dummy()->where( 'test', 1 )->delete();
+
+			$statements = $self->statements;
+			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) );
+			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) );
+			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) );
+			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) );
+			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) );
+			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) );
+			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) );
+			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) );
+			$self->statements = $statements;
+		} );
+
+		$db->runTransaction( function ( $db ) {
+			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->delete();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->delete();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->delete();
+		} );
+
+		$this->assertEquals( array(
+			"DELETE FROM `dummy`",
+			"DELETE FROM `dummy` WHERE `test` = '1'",
+			"SELECT * FROM `dummy` WHERE test > 42 LIMIT 2 OFFSET 2",
+			"DELETE FROM `dummy` WHERE `id` IN ( '4', '5' )",
+			"SELECT * FROM `dummy` WHERE test > 42 ORDER BY `test` ASC LIMIT 2",
+			"DELETE FROM `dummy` WHERE `id` IN ( '6', '1' )",
+			"DELETE FROM `dummy` WHERE test > 42"
+		), $this->statements );
+
+	}
+
+	function testDeletePrimary() {
+
+		$db = $this->db();
+
+		$db->runTransaction( function ( $db ) use ( $self ) {
+			$db->category()->where( 'id > 21' )->limit( 2 )->delete();
+		} );
+
+		$this->assertEquals( array(
+			"SELECT * FROM `category` WHERE id > 21 LIMIT 2",
+			"DELETE FROM `category` WHERE `id` IN ( '22', '23' )",
+		), $this->statements );
+
+	}
+
+	function testDeleteComposite() {
+
+		$db = $this->db();
+		$self = $this;
+
+		$db->runTransaction( function ( $db ) use ( $self ) {
+			$db->categorization()->where( 'category_id > 21' )->limit( 2 )->delete();
+		} );
+
+		$this->assertEquals( array(
+			"SELECT * FROM `categorization` WHERE category_id > 21 LIMIT 2",
+			"DELETE FROM `categorization` WHERE ( `category_id` = '22' AND `post_id` = '11' ) OR ( `category_id` = '23' AND `post_id` = '11' )",
+		), $this->statements );
 
 	}
 

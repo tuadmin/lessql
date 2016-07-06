@@ -11,7 +11,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/**
 	 * Constructor, only for internal use
 	 */
-	function __construct( $statement, $source ) {
+	function __construct( $statement, $source, $insertId = null ) {
 		$this->statement = $statement;
 
 		if ( is_array( $source ) ) {
@@ -23,9 +23,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 		$this->rows = array_map( array( $this, 'createRow' ), $this->rows );
 		$this->count = count( $this->rows );
-
-		$this->insertId = $statement->getDatabase()->getPdo()
-			->lastInsertId( $statement->getSequence() );
+		$this->insertId = $insertId;
 	}
 
 	/**
@@ -53,6 +51,10 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function getInsertId() {
 		return $this->insertId;
+	}
+
+	function getTable() {
+		return $this->statement->getTable();
 	}
 
 	function getKeys( $key ) {
