@@ -192,13 +192,11 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	}
 
 	static function clearTransaction() {
-
 		try {
 			self::$pdo->rollBack();
 		} catch ( \Exception $ex ) {
 			// ignore
 		}
-
 	}
 
 	static function query( $q ) {

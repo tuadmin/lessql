@@ -5,21 +5,114 @@ require_once 'BaseTest.php';
 
 class SQLTest extends BaseTest {
 
+	function testTokens() {
+
+		$db = $this->db();
+
+		$s = $db( 'SELECT * FROM &post' );
+
+	}
+
 	function testResolve() {
 
 		$db = $this->db();
 
-		$f = $db( 'SELECT * FROM &table,&tables WHERE &conds OR foo=:bar OR x in (:lol)', array(
-			'table' => 'post',
-			'tables' => array( 'a', 'b' ),
+		$s = $db( 'SELECT * FROM &post,::tables WHERE ::conds OR foo=:bar OR x in (::lol) :lol', array(
+			'tables' => $db->quoteIdentifier( array( 'a', 'b' ) ),
 			'conds' => $db->where( array( 'foo' => 'bar', 'x' => null ) ),
 			'lol' => array( 1, 2, 3 )
 		) );
 
 		$this->assertEquals(
-			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3')",
-			(string) $f->resolve()
+			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3') :p0",
+			(string) $s
 		);
+
+		$this->assertEquals(
+			array( 'p0' => array( 1, 2, 3 ) ),
+			$s->resolve()->getParams()
+		);
+
+	}
+
+	function testGetTable() {
+
+		$db = $this->db();
+
+		$this->assertEquals(
+			'post',
+			$db( 'SELECT * FROM &post, &user' )->getTable()
+		);
+
+		$this->assertEquals(
+			'post',
+			$db( 'SELECT * FROM ::table, &user', array(
+				'table' => $db->table( 'post' )
+			) )->getTable()
+		);
+
+	}
+
+	function testReferencedBy() {
+
+		$db = $this->db();
+
+		$categorizations = $db( 'SELECT * FROM &categorization' );
+		$post = $db( 'SELECT * FROM &post WHERE ::where' )
+			->referencedBy( $categorizations->first() )
+			->first();
+
+		$this->assertEquals( 'Championship won', $post[ 'title' ] );
+
+		$posts = $db( 'SELECT * FROM &post WHERE ::where' )
+			->referencedBy( $categorizations );
+
+		$this->assertEquals( 3, $posts->count() );
+
+	}
+
+	function testReferencedByVia() {
+
+		$db = $this->db();
+
+		$posts = $db( 'SELECT * FROM &post' );
+		$author = $db( 'SELECT * FROM &user WHERE ::where' )
+			->referencedBy( $posts->first() )
+			->via( 'author_id' )
+			->first();
+
+		$this->assertEquals( 'Writer', $author[ 'name' ] );
+
+		$authors = $db( 'SELECT * FROM &user WHERE ::where' )
+			->referencedBy( $posts )
+			->via( 'author_id' );
+
+		$this->assertEquals( 2, $authors->count() );
+
+	}
+
+	function testReferencing() {
+
+		$db = $this->db();
+
+		$posts = $db( 'SELECT * FROM &post' );
+		$categorizations = $db( 'SELECT * FROM &categorization WHERE ::where' )
+			->referencing( $posts->first() );
+
+		$this->assertEquals( 3, $posts->count() );
+
+	}
+
+	function testReferencingVia() {
+
+		$db = $this->db();
+
+		$authors = $db( 'SELECT * FROM &user' );
+		$posts = $db( 'SELECT * FROM &post WHERE ::where' )
+			->referencing( $authors->first() )
+			->via( 'author_id' );
+
+		$this->assertEquals( 2, $posts->count() );
 
 	}
 

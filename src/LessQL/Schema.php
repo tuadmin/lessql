@@ -213,7 +213,7 @@ class Schema {
 
 		if ( is_array( $primary ) ) return null;
 
-		$table = $this->rewriteTable( $table );
+		$table = $this->rewrite( $table );
 
 		return $table . '_' . $primary . '_seq';
 
@@ -237,7 +237,7 @@ class Schema {
 	 * @param string $table
 	 * @return string
 	 */
-	function rewriteTable( $table ) {
+	function rewrite( $table ) {
 		if ( is_callable( $this->rewrite ) ) {
 			return call_user_func( $this->rewrite, $table );
 		}

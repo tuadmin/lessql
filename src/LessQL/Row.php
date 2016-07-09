@@ -136,24 +136,18 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		$name = preg_replace( '/List$/', '', $fullName );
 		$table = $schema->getAlias( $name );
 		$single = $name === $fullName;
+		$query = $this->getDatabase()->query( $table );
 
 		if ( $single ) {
-			$key = $schema->getPrimary( $table );
-			$parentKey = $schema->getReference( $this->_table, $name );
+			$query = $query->referencedBy( $this )
+				->via( $schema->getReference( $this->getTable(), $name ) );
 		} else {
-			$key = $schema->getBackReference( $this->_table, $name );
-			$parentKey = $schema->getPrimary( $this->_table );
+			$query = $query->referencing( $this )
+				->via( $schema->getBackReference( $this->getTable(), $name ) );
 		}
 
-		$query = $this->getDatabase()->query( $table )->eager(
-			$key,
-			$this[ $parentKey ],
-			$this->getTable(),
-			$parentKey,
-			$single
-		);
-
 		if ( $where !== null ) return $query->where( $where, $params );
+
 		return $query;
 
 	}
@@ -537,6 +531,10 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function setDirty() {
 		$this->_modified = $this->_properties; // copy...
 		return $this;
+	}
+
+	function getKeys( $key ) {
+		return array( $this[ $key ] );
 	}
 
 	/**

@@ -3,7 +3,11 @@
 namespace LessQL;
 
 /**
- * Database object wrapping a PDO instance
+ * Represents a database context,
+ * capable of writing SQL statements and fragments.
+ *
+ * Essentially wraps a PDO object with an improved API.
+ * Also serves as a caching context.
  */
 class Database {
 
@@ -16,13 +20,27 @@ class Database {
 	function __construct( $pdo, $options = array() ) {
 
 		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-		$this->pdo = $pdo;
 
+		$this->pdo = $pdo;
+		$this->transactions = new Transactions( $pdo );
 		$this->schema = new Schema( $this );
+		$this->beforeExec = @$options[ 'beforeExec' ];
+
 		if ( @$options[ 'identifierDelimiter' ] ) {
 			$this->identifierDelimiter = $options[ 'identifierDelimiter' ];
 		}
-		$this->beforeExec = @$options[ 'beforeExec' ];
+
+		try {
+			$pdo->exec( "SET sql_mode='NO_BACKSLASH_ESCAPES'" );
+		} catch ( \PDOException $ex ) {
+			//var_dump( (string) $ex );
+		}
+
+		try {
+			$pdo->exec( "SET standard_conforming_strings=on" );
+		} catch ( \PDOException $ex ) {
+			//var_dump( (string) $ex );
+		}
 
 	}
 
@@ -72,12 +90,12 @@ class Database {
 	 */
 	function query( $table, $id = null ) {
 
-		$select = $this( "SELECT &_select FROM &table WHERE &_where &_orderBy &_limit", array(
-			'_select' => $this( '*' ),
-			'table' => $table,
-			'_where' => $this->where(),
-			'_orderBy' => $this(),
-			'_limit' => $this()
+		$select = $this( "SELECT ::select FROM ::table WHERE ::where ::orderBy ::limit", array(
+			'select' => $this( '*' ),
+			'table' => $this->table( $table ),
+			'where' => $this->where(),
+			'orderBy' => $this(),
+			'limit' => $this()
 		) );
 
 		if ( $id !== null ) {
@@ -122,9 +140,9 @@ class Database {
 		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return $this( self::NOOP );
 
-		return $this( "INSERT INTO &table ( &columns ) VALUES &values", array(
-			'table' => $table,
-			'columns' => $columns,
+		return $this( "INSERT INTO ::table ( ::columns ) VALUES ::values", array(
+			'table' => $this->table( $table ),
+			'columns' => $this->quoteIdentifier( $columns ),
 			'values' => $this->getValueLists( $rows, $columns )
 		) );
 
@@ -147,9 +165,9 @@ class Database {
 		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return $result;
 
-		$prepared = $this( "INSERT INTO &table ( &columns ) VALUES &values", array(
-			'table' => $table,
-			'columns' => $columns,
+		$prepared = $this( "INSERT INTO ::table ( ::columns ) VALUES ::values", array(
+			'table' => $this->table( $table ),
+			'columns' => $this->quoteIdentifier( $columns ),
 			'values' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" )
 		) )->prepare();
 
@@ -220,20 +238,18 @@ class Database {
 	 * @param array $data
 	 * @param array $where
 	 * @param array $params
-	 * @return null|Result
+	 * @return SQL
 	 */
 	function update( $table, $data, $where = array(), $params = array() ) {
 
 		if ( empty( $data ) ) return $this( self::NOOP );
 
-		if ( !is_array( $where ) ) $where = array( $where );
-		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 3 );
-
-		return $this( "UPDATE &table SET &set WHERE &_where &_limit", array(
-			'table' => $table,
+		return $this( "UPDATE ::table SET ::set WHERE ::where ::limit", array(
+			'table' => $this->table( $table ),
 			'set' => $this->assign( $data ),
-			'_limit' => $this()
-		) )->where( $where, $params );
+			'where' => $this->where( $where, $params ),
+			'limit' => $this()
+		) );
 
 	}
 
@@ -245,17 +261,15 @@ class Database {
 	 * @param string $table
 	 * @param array $where
 	 * @param array $params
-	 * @return Result
+	 * @return SQL
 	 */
 	function delete( $table, $where = array(), $params = array() ) {
 
-		if ( !is_array( $where ) ) $where = array( $where );
-		if ( !is_array( $params ) ) $params = array_slice( func_get_args(), 2 );
-
-		return $this( "DELETE FROM &table WHERE &_where &_limit", array(
-			'table' => $table,
-			'_limit' => $this()
-		) )->where( $where, $params );
+		return $this( "DELETE FROM ::table WHERE ::where ::limit", array(
+			'table' => $this->table( $table ),
+			'where' => $this->where( $where, $params ),
+			'limit' => $this()
+		) );
 
 	}
 
@@ -265,7 +279,7 @@ class Database {
 	function where( $condition = null, $params = array(), $before = null ) {
 
 		// empty condition evaluates to true
-		if ( $condition === null ) {
+		if ( empty( $condition ) ) {
 			return $this( $before ? $before : '1=1' );
 		}
 
@@ -467,7 +481,7 @@ class Database {
 	function quoteValue( $value ) {
 
 		if ( is_array( $value ) ) {
-			return implode( ", ", array_map( array( $this, 'quoteValue' ), $value ) );
+			return $this( implode( ", ", array_map( array( $this, 'quoteValue' ), $value ) ) );
 		}
 
 		if ( $value instanceof SQL ) return $value;
@@ -511,7 +525,7 @@ class Database {
 	function quoteIdentifier( $identifier ) {
 
 		if ( is_array( $identifier ) ) {
-			return implode( ", ", array_map( array( $this, 'quoteIdentifier' ), $identifier ) );
+			return $this( implode( ", ", array_map( array( $this, 'quoteIdentifier' ), $identifier ) ) );
 		}
 
 		if ( $identifier instanceof SQL ) return $identifier;
@@ -531,28 +545,23 @@ class Database {
 
 	}
 
+	/**
+	 *
+	 */
+	function table( $name ) {
+		if ( !preg_match( '([a-zA-Z_$][a-zA-Z0-9_$]+)', $name ) ) {
+			throw new Exception( 'Invalid table reference: ' . $name );
+		}
+		return $this( '&' . $name );
+	}
+
 	//
 
 	/**
 	 * Run a transaction
 	 */
 	function runTransaction( $fn ) {
-
-		if ( !is_callable( $fn ) ) {
-			throw new Exception( 'Transaction is not callable' );
-		}
-
-		$this->pdo->beginTransaction();
-
-		try {
-			$return = $fn( $this );
-			$this->pdo->commit();
-			return $return;
-		} catch ( \Exception $ex ) {
-			$this->pdo->rollBack();
-			throw $ex;
-		}
-
+		return $this->transactions->run( $fn, $this );
 	}
 
 	// Factories
@@ -593,11 +602,11 @@ class Database {
 	}
 
 	/**
-	 * Create a result bound to $parent using table or association $name.
-	 * $parent may be the database, a result, or a row
+	 * Create a result from a statement and row data
 	 *
-	 * @param Database|Result|Row $parent
-	 * @param string $name
+	 * @param SQL $statement
+	 * @param PDO|array $source
+	 * @param string $insertId
 	 * @return Result
 	 */
 	function createResult( $statement, $source, $insertId = null ) {
@@ -614,8 +623,8 @@ class Database {
 	/**
 	 * Create an eager loading policy
 	 */
-	function createEager( $query, $key, $value, $parentTable, $parentKey, $single ) {
-		return new Eager( $query, $key, $value, $parentTable, $parentKey, $single );
+	function createEager( $statement, $other, $back = false ) {
+		return new Eager( $statement, $other, $back );
 	}
 
 	//
@@ -648,35 +657,40 @@ class Database {
 	//
 
 	/**
-	 * Internal. Execute an SQL statement and return the result
+	 * Internal. Execute an SQL statement and return the result,
+	 * or return result from cache.
 	 *
 	 * @param SQL $sql
 	 */
 	function exec( $sql, $params = array() ) {
 
-		$resolved = $this( $sql, $params )->resolve();
+		$sql = $this( $sql, $params );
+		$resolved = $sql->resolve();
+		$string = (string) $resolved;
 
 		// skip NOOP
-		if ( (string) $resolved === self::NOOP ) {
+		if ( $string === self::NOOP ) {
 			return $this->createResult( $this(), array() );
 		}
 
 		// try cache
-		$key = json_encode( array( (string) $resolved, $resolved->getParams() ) );
+		$key = json_encode( array( $string, $resolved->getParams() ) );
 		$result = @$this->resultCache[ $key ];
 		if ( $result ) return $result;
 
 		if ( $this->beforeExec ) {
-			call_user_func( $this->beforeExec, $resolved );
+			call_user_func( $this->beforeExec, $sql );
 		}
 
 		// execute statement via PDO
-		$pdoStatement = $this->pdo->prepare( (string) $resolved );
+		$pdoStatement = $this->pdo->prepare( $string );
 		$pdoStatement->execute( $resolved->getParams() );
-		$sequence = $this->getSchema()->getSequence( $resolved->getTable() );
+		$sequence = $this->getSchema()->getSequence( $sql->getTable() );
 		$insertId = $this->pdo->lastInsertId( $sequence );
 
+		// write to cache
 		$result = $this->resultCache[ $key ] = $this->createResult( $sql, $pdoStatement, $insertId );
+
 		return $result;
 
 	}
@@ -720,13 +734,16 @@ class Database {
 	/** @var string */
 	protected $identifierDelimiter = '`';
 
+	/** @var Transactions */
+	protected $transactions;
+
 	/** @var null|callable */
 	protected $beforeExec;
 
 	/** @var array */
 	protected $resultCache = array();
 
-	/** */
+	/** @var string */
 	const NOOP = 'SELECT 1 WHERE 1=0';
 
 }

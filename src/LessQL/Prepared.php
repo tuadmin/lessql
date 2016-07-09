@@ -11,7 +11,7 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @param SQL $statement
 	 */
 	function __construct( $statement ) {
-		$this->statement = $statement->resolve();
+		$this->statement = $statement;
 		$this->pdoStatement = $this->statement->getDatabase()->getPdo()
 			->prepare( (string) $statement );
 	}
@@ -23,8 +23,7 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function exec( $params = array() ) {
-		$this->pdoStatement->execute( array_merge( $this->statement->getParams(), $params ) );
-		return $this->statement->createResult( $this->pdoStatement );
+		// TODO
 	}
 
 	/**

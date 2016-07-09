@@ -23,7 +23,7 @@ class FindTest extends BaseTest {
 
 	}
 
-	function xtestVia() {
+	function testVia() {
 
 		$db = $this->db();
 
@@ -33,17 +33,18 @@ class FindTest extends BaseTest {
 
 		$author = $post->user()->via( 'author_id' )->first();
 		$editor = $post->user()->via( 'editor_id' )->first();
-		$posts = $author->postList()->via( 'author_id' );
 
 		$this->assertEquals( 1, $author->id );
 		$this->assertEquals( 2, $editor->id );
-		$this->assertEquals( array( '11', '12' ), $posts->getLocalKeys( 'id' ) );
+
+		$posts = $author->postList()->via( 'author_id' );
+		$this->assertEquals( array( '11', '12' ), $posts->exec()->getKeys( 'id' ) );
 
 		$this->assertEquals( array(
 			"SELECT * FROM `post` WHERE `id` = '12'",
 			"SELECT * FROM `user` WHERE `id` = '1'",
 			"SELECT * FROM `user` WHERE `id` = '2'",
-			"SELECT * FROM `post` WHERE `author_id` = '1'"
+			"SELECT * FROM `post` WHERE `author_id` IN ( '1', '2' )"
 		), $this->statements );
 
 	}
@@ -58,7 +59,7 @@ class FindTest extends BaseTest {
 		$db->dummy()->whereNot( 'test', 31 )->first();
 		$db->dummy()->where( 'test', array( 1, 2, 3 ) )->first();
 		$db->dummy()->where( 'test = 31' )->first();
-		$db->dummy()->where( 'test = ?', 31 )->first();
+		$db->dummy()->where( 'test = ?', array( 31 ) )->first();
 		$db->dummy()->where( 'test = ?', array( 32 ) )->first();
 		$db->dummy()->where( 'test = :param', array( 'param' => 31 ) )->first();
 		$db->dummy()
@@ -73,10 +74,9 @@ class FindTest extends BaseTest {
 			"SELECT * FROM `dummy` WHERE `test` != '31'",
 			"SELECT * FROM `dummy` WHERE `test` IN ( '1', '2', '3' )",
 			"SELECT * FROM `dummy` WHERE test = 31",
-			"SELECT * FROM `dummy` WHERE test = ?",
-			"SELECT * FROM `dummy` WHERE test = ?",
-			"SELECT * FROM `dummy` WHERE test = :param",
-			"SELECT * FROM `dummy` WHERE (test < :a) AND test > :b",
+			"SELECT * FROM `dummy` WHERE test = :p0",
+			"SELECT * FROM `dummy` WHERE test = :p0",
+			"SELECT * FROM `dummy` WHERE (test < :p0) AND test > :p1",
 		), $this->statements );
 
 		$this->assertEquals( array(
@@ -134,7 +134,7 @@ class FindTest extends BaseTest {
 
 	}
 
-	function xtestTraversal() {
+	function testTraversal() {
 
 		$db = $this->db();
 
@@ -162,7 +162,7 @@ class FindTest extends BaseTest {
 
 			}
 
-			$post->categorizationList()->category( 'id > ?', 0 )->fetchAll();
+			$post->categorizationList()->category( 'id > ?', 0 )->exec();
 
 			$posts[] = $t;
 
@@ -201,7 +201,7 @@ class FindTest extends BaseTest {
 
 	}
 
-	function xtestBackReference() {
+	function testBackReference() {
 
 		$db = $this->db();
 
@@ -210,7 +210,7 @@ class FindTest extends BaseTest {
 		}
 
 		$this->assertEquals( array(
-			"SELECT * FROM `user`",
+			"SELECT * FROM `user` WHERE 1=1",
 			"SELECT * FROM `post` WHERE `editor_id` IN ( '1', '2', '3' )"
 		), $this->statements );
 
@@ -230,30 +230,13 @@ class FindTest extends BaseTest {
 	}
 
 	/**
-	 * @expectedException \LessQL\Exception
-	 * @expectedExceptionMessage "post_id" does not exist in "user" result
+	 * @expectedException \PDOException
+	 * expectedExceptionMessage "post_id" does not exist in "user" result
 	 */
 	function testBadReference() {
 
 		$db = $this->db();
 		$db->user()->post()->exec();
-
-	}
-
-	function testCreateRow() {
-
-		$db = $this->db();
-
-		$row = $db->createRow( 'user', array( 'name' => 'foo' ) );
-
-		$this->assertTrue( $row instanceof \LessQL\Row );
-		$this->assertSame( 'user', $row->getTable() );
-
-		$row->save();
-
-		$row = $db->user( $row[ 'id' ] );
-
-		$this->assertSame( 'foo', $row[ 'name' ] );
 
 	}
 

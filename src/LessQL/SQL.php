@@ -22,7 +22,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return SQL
 	 */
 	function bind( $params, $value = null ) {
-		if ( count( func_get_args() ) > 1 ) {
+		if ( !is_array( $params ) ) {
 			return $this->bind( array( $params => $value ) );
 		}
 		$clone = clone $this;
@@ -35,8 +35,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Prepared
 	 */
 	function prepare( $params = null ) {
-		if ( $params ) return $this->bind( $params )->prepare();
-
+		if ( $params !== null ) return $this->bind( $params )->prepare();
 		return $this->db->createPrepared( $this );
 	}
 
@@ -47,9 +46,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function exec( $params = null ) {
-		if ( $params ) return $this->bind( $params )->exec();
+		if ( $params !== null ) return $this->bind( $params )->exec();
 		if ( $this->eager ) return $this->eager->exec();
-		return $this->db->exec( $this );
+		return $this->db->exec( $this, $params );
 	}
 
 	/**
@@ -111,23 +110,13 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$fullName = $name;
 		$name = preg_replace( '/List$/', '', $fullName );
 		$table = $schema->getAlias( $name );
-		$single = $name === $fullName;
+		$back = $name === $fullName;
 
-		if ( $single ) {
-			$key = $schema->getPrimary( $table );
-			$parentKey = $schema->getReference( $this->getTable(), $name );
+		if ( $back ) {
+			$query = $this->db->query( $table )->referencing( $this );
 		} else {
-			$key = $schema->getBackReference( $this->getTable(), $name );
-			$parentKey = $schema->getPrimary( $this->getTable() );
+			$query = $this->db->query( $table )->referencedBy( $this );
 		}
-
-		$query = $this->db->query( $table )->eager(
-			$key,
-			$this->exec()->getKeys( $parentKey ),
-			$this->getTable(),
-			$parentKey,
-			$single
-		);
 
 		if ( $where !== null ) return $query->where( $where, $params );
 		return $query;
@@ -144,9 +133,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function select( $expr ) {
-		$before = (string) @$this->params[ '_select' ] === '*' ? array() : $this->params[ '_select' ];
+		$before = (string) @$this->params[ 'select' ] === '*' ? array() : $this->params[ 'select' ];
 		return $this->bind( array(
-			'_select' => array_merge( $before, func_get_args() )
+			'select' => array_merge( $before, $this->quoteIdentifier( func_get_args() ) )
 		) );
 	}
 
@@ -159,7 +148,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function where( $condition, $params = array() ) {
 		return $this->bind( array(
-			'_where' => $this->db->where( $condition, $params, @$this->params[ '_where' ] )
+			'where' => $this->db->where( $condition, $params, @$this->params[ 'where' ] )
 		) );
 	}
 
@@ -172,7 +161,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function whereNot( $key, $value = null ) {
 		return $this->bind( array(
-			'_where' => $this->db->whereNot( $key, $value, @$this->params[ '_where' ] )
+			'where' => $this->db->whereNot( $key, $value, @$this->params[ 'where' ] )
 		) );
 	}
 
@@ -185,7 +174,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function orderBy( $column, $direction = "ASC" ) {
 		return $this->bind( array(
-			'_orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ '_orderBy' ] )
+			'orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ 'orderBy' ] )
 		) );
 	}
 
@@ -198,7 +187,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function limit( $count = null, $offset = null ) {
 		return $this->bind( array(
-			'_limit' => $this->db->limit( $count, $offset )
+			'limit' => $this->db->limit( $count, $offset )
 		) );
 	}
 
@@ -217,9 +206,18 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/**
 	 *
 	 */
-	function eager( $key, $value, $parentTable, $parentKey, $single ) {
+	function referencedBy( $other ) {
 		$clone = clone $this;
-		$clone->eager = $this->db->createEager( $clone, $key, $value, $parentTable, $parentKey, $single );
+		$clone->eager = $this->db->createEager( $this, $other, true );
+		return $clone;
+	}
+
+	/**
+	 *
+	 */
+	function referencing( $other ) {
+		$clone = clone $this;
+		$clone->eager = $this->db->createEager( $this, $other );
 		return $clone;
 	}
 
@@ -233,12 +231,22 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 *
+	 */
+	function late() {
+		$clone = clone $this;
+		$clone->eager = null;
+		return $clone;
+	}
+
+	/**
 	 * Return primary table of this fragment
 	 *
 	 * @return string|null
 	 */
 	function getTable() {
-		return @$this->params[ 'table' ];
+		$this->resolve();
+		return $this->table;
 	}
 
 	/**
@@ -263,7 +271,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return string
 	 */
 	function __toString() {
-		return $this->sql;
+		return $this->resolve()->sql;
 	}
 
 	//
@@ -294,66 +302,87 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	//
 
 	/**
-	 * Return SQL fragment with resolved params
+	 * Return SQL fragment with resolved params and tables rewritten
 	 *
 	 * @return SQL
 	 */
-	function resolve() {
+	function resolve( $offset = 0 ) {
 
+		if ( $this->resolved ) return $this->resolved;
+
+		$db = $this->db;
 		$resolved = '';
-		$tokens = $this->getTokens( true );
+		$params = array();
+		$tokens = $this->getTokens();
 		$count = count( $tokens );
-		$unset = array();
+		$q = 0;
 
 		for ( $i = 0; $i < $count; ++$i ) {
 
-			list( $type, $string ) = $tokens[ $i ];
-			$p = null;
-			$key = null;
-
-			if ( $type === self::TOKEN_MARKER ) {
-
-				$prefix = $string{ 0 };
-				$key = substr( $string, 1 );
-
-				if ( array_key_exists( $key, $this->params ) ) {
-
-					$param = $this->params[ $key ];
-
-					switch ( $prefix ) {
-					case '&':
-						$p = $this->db->quoteIdentifier( $param );
-						break;
-					case ':':
-						// only resolve non-preparable params here
-						if ( is_array( $param ) ) {
-							$p = $this->db->quoteValue( $param );
-						} else if ( $param instanceof SQL ) {
-							$p = $param->resolve();
-						}
-						break;
-					}
-
-				} else if ( $prefix === '&' ) {
-					var_dump( $key );
-					throw new Exception( 'Undefined parameter ' + $key );
+			foreach ( $params as $key => $value ) {
+				if ( $m = preg_match( '/p(\d+)/', $key ) ) {
+					$offset = max( $offset, intval( $m[ 1 ] ) + 1 );
 				}
-
 			}
 
-			if ( $p !== null ) {
-				$unset[] = $key;
-				$resolved .= $p;
-			} else {
-				$resolved .= $string;
+			list( $type, $string ) = $tokens[ $i ];
+			$r = null;
+			$key = substr( $string, 1 );
+
+			switch ( $type ) {
+			case self::TOKEN_QUESTION_MARK:
+				if ( array_key_exists( $q, $this->params ) ) {
+					$params[ 'p' . $offset ] = $this->params[ $q ];
+					$r = ':p' . $offset;
+				}
+				++$q;
+				break;
+
+			case self::TOKEN_COLON_MARKER:
+				if ( array_key_exists( $key, $this->params ) ) {
+					$params[ 'p' . $offset ] = $this->params[ $key ];
+					$r = ':p' . $offset;
+				}
+				break;
+
+			case self::TOKEN_DOUBLE_QUESTION_MARK:
+				if ( array_key_exists( $q, $this->params ) ) {
+					$r = $db->quoteValue( $this->params[ $q ] );
+				}
+				++$q;
+				break;
+
+			case self::TOKEN_DOUBLE_COLON_MARKER:
+				$key = substr( $key, 1 );
+				if ( array_key_exists( $key, $this->params ) ) {
+					$r = $db->quoteValue( $this->params[ $key ] );
+				}
+				break;
+
+			case self::TOKEN_AMPERSAND_MARKER:
+				if ( !$this->table ) {
+					$this->table = $key;
+				}
+				$r = $db->quoteIdentifier( $db->getSchema()->rewrite( $key ) );
+				break;
 			}
+
+			if ( $r instanceof SQL ) {
+				if ( !$this->table && $r->getTable() ) {
+					$this->table = $r->getTable();
+				}
+				$r = $r->resolve( $offset );
+				$params = array_merge( $r->getParams(), $params );
+			}
+
+			$resolved .= $r === null ? $string : $r;
 
 		}
 
-		$params = $this->params;
-		foreach ( $unset as $key ) unset( $params[ $key ] );
+		$this->resolved = $db( $resolved, $params );
+		$this->resolved->resolved = $this->resolved;
 
-		return $this->db->createSQL( $resolved, $params );
+		return $this->resolved;
 
 	}
 
@@ -361,88 +390,91 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * This is probably a non-standard, insane hack. Works great though.
 	 * TODO Needs rigorous testing
 	 *
-	 * @param boolean $whitespace Set to also get whitespace tokens
 	 * @return array
 	 */
-	function getTokens( $whitespace = false ) {
+	function getTokens() {
 
-		if ( $this->tokens ) {
-			return $whitespace ? $this->tokens : $this->cleanTokens;
-		}
+		if ( $this->tokens ) return $this->tokens;
 
 		static $tokenizeRx;
 
 		if ( !isset( $tokenizeRx ) ) {
 
 			$rx = array(
-
-				'(`(?:[^`\\\\]++|\\\\.|``)*+`)',      // 1 backtick delimited
-				"('(?:[^'\\\\]++|\\\\.|'')*+')",      // 2 single quote delimited
-				'("(?:[^"\\\\]++|\\\\.|"")*+")',      // 3 double quote delimited
-				'(\[(?:[^\]\\\\]++|\\\\.)*+\])',      // 4 bracket delimited
-
-				'((?:--|#)[^\n]*)',                   // 5 single line comments
-				'(/\*.*?\*/)',                        // 6 c style comments
-
-				'([:&\?][a-zA-Z_$][a-zA-Z0-9_$]*)',   // 7 parameter markers
-				'([a-zA-Z_$][a-zA-Z0-9_$]*)',         // 8 identifiers and keywords
-				'(\d+(\.\d+)*)',                      // 9 numbers
-				'(<>|<=>|>=|<=|==|!=|<<|>>|\|\||&&)', // 10 multi char operators
-				'([^\s])',                            // 11 single char token (operators, punctuation, etc.)
-
-				'(\s+)'                               // 12 whitespace
-
+				'(\s+)',                        // 1 whitespace
+				'((?:--|#)[^\n]*)',             // 2 single line comment
+				'(/\*.*?\*/)',                  // 3 c style comment
+				"('(?:[^']|'')*')",             // 4 single quote quoted
+				'("(?:[^"]|"")*")',             // 5 double quote quoted
+				'(`(?:[^`]|``)*`)',             // 6 backtick quoted
+				'(\[(?:[^\]])*\])',             // 7 bracket quoted
+				'(\?\?)',                       // 8 double question mark
+				'(\?)',                         // 9 question mark
+				'(::[a-zA-Z_$][a-zA-Z0-9_$]*)', // 10 double colon marker
+				'(:[a-zA-Z_$][a-zA-Z0-9_$]*)',  // 11 colon marker
+				'(&[a-zA-Z_$][a-zA-Z0-9_$]*)',  // 12 ampersand marker
+				'(\S)'                          // 13 other
 			);
 
-			$tokenizeRx = '(^' . implode( '|', $rx ) . ')';
+			$tokenizeRx = '(^' . implode( '|', $rx ) . ')s';
 
 		}
 
 		$this->tokens = array();
-		$this->cleanTokens = array();
 		$sql = $this->sql;
+		$buffer = '';
 
 		while ( preg_match( $tokenizeRx, $sql, $match ) ) {
 			for ( $type = 1; strlen( $match[ $type ] ) === 0; ++$type );
 			$string = $match[ 0 ];
 
-			switch ( $type ) {
-			case self::TOKEN_WHITESPACE:
-			case self::TOKEN_COMMENT_LINE:
-			case self::TOKEN_COMMENT_C:
-				break;
-			case self::TOKEN_WORD:
-			case self::TOKEN_BACKTICK_QUOTED:
-			case self::TOKEN_DOUBLE_QUOTED:
-			case self::TOKEN_BRACKET_QUOTED:
-				$this->cleanTokens[] = array( $type, strtolower( $string ) );
-				break;
-			default:
-				$this->cleanTokens[] = array( $type, $string );
+			if ( $type === self::TOKEN_OTHER ) {
+				$buffer .= $string;
+			} else {
+				if ( $buffer !== '' ) {
+					$this->tokens[] = array( self::TOKEN_OTHER, $buffer );
+					$buffer = '';
+				}
+				$this->tokens[] = array( $type, $string );
 			}
 
-			$this->tokens[] = array( $type, $string );
 			$sql = substr( $sql, strlen( $string ) );
 		}
 
-		return $whitespace ? $this->tokens : $this->cleanTokens;
+		if ( $buffer !== '' ) {
+			$this->tokens[] = array( self::TOKEN_OTHER, $buffer );
+		}
 
+		return $this->tokens;
+
+	}
+
+	/**
+	 *
+	 */
+	function __clone() {
+		$this->resolved = null;
+		$this->table = null;
 	}
 
 	//
 
-	const TOKEN_BACKTICK_QUOTED = 1;
-	const TOKEN_SINGLE_QUOTED = 2;
-	const TOKEN_DOUBLE_QUOTED = 3;
-	const TOKEN_BRACKET_QUOTED = 4;
-	const TOKEN_COMMENT_LINE = 5;
-	const TOKEN_COMMENT_C = 6;
-	const TOKEN_MARKER = 7;
-	const TOKEN_WORD = 8;
-	const TOKEN_NUMBER = 9;
-	const TOKEN_OPERATOR = 10;
-	const TOKEN_CHARACTER = 12;
-	const TOKEN_WHITESPACE = 13;
+	const TOKEN_WHITESPACE = 1;
+	const TOKEN_LINE_COMMENT = 2;
+	const TOKEN_C_COMMENT = 3;
+
+	const TOKEN_SINGLE_QUOTED = 4;
+	const TOKEN_DOUBLE_QUOTED = 5;
+	const TOKEN_BACKTICK_QUOTED = 6;
+	const TOKEN_BRACKET_QUOTED = 7;
+
+	const TOKEN_DOUBLE_QUESTION_MARK = 8;
+	const TOKEN_QUESTION_MARK = 9;
+	const TOKEN_DOUBLE_COLON_MARKER = 10;
+	const TOKEN_COLON_MARKER = 11;
+	const TOKEN_AMPERSAND_MARKER = 12;
+
+	const TOKEN_OTHER = 13;
 
 	/** @var Database */
 	protected $db;
@@ -453,16 +485,16 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/** @var array */
 	protected $params;
 
-	/** @var array */
-	protected $tokens;
-
-	/** @var array */
-	protected $cleanTokens;
-
 	/** @var Eager|null */
 	protected $eager;
 
+	/** @var array */
+	protected $tokens;
+
+	/** @var SQL */
+	protected $resolved;
+
 	/** @var string */
-	protected $parent;
+	protected $table;
 
 }

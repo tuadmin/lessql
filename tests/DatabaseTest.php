@@ -75,7 +75,9 @@ class DatabaseTest extends BaseTest {
 		$db = $this->db();
 
 		$db->runTransaction( function ( $db ) {
+			$db->runTransaction( function ( $db ) {
 
+			} );
 		} );
 
 	}
@@ -176,10 +178,16 @@ class DatabaseTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'dummy', array( 'foo' => 'bar' ) );
+		$row = $db->createRow( 'user', array( 'name' => 'foo' ) );
 
-		$this->assertEquals( $row->getTable(), 'dummy' );
-		$this->assertEquals( $row->foo, 'bar' );
+		$this->assertTrue( $row instanceof \LessQL\Row );
+		$this->assertSame( 'user', $row->getTable() );
+
+		$row->save();
+
+		$row = $db->user( $row[ 'id' ] );
+
+		$this->assertSame( 'foo', $row[ 'name' ] );
 
 	}
 
@@ -287,7 +295,7 @@ class DatabaseTest extends BaseTest {
 		} );
 
 		$this->assertEquals( array(
-			"UPDATE `dummy` SET `test` = '42'",
+			"UPDATE `dummy` SET `test` = '42' WHERE 1=1",
 			"UPDATE `dummy` SET `test` = '42' WHERE `test` = '1'",
 			"SELECT * FROM `dummy` WHERE test > 42 LIMIT 2 OFFSET 2",
 			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '4', '5' )",
