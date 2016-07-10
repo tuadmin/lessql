@@ -4,6 +4,8 @@ namespace LessQL;
 
 /**
  * Represents an eager loading policy. Internal
+ *
+ * Immutable
  */
 class Eager {
 
@@ -17,14 +19,14 @@ class Eager {
 
 		$table = $query->getTable();
 		$otherTable = $other->getTable();
-		$schema = $query->getDatabase()->getSchema();
+		$structure = $query->getContext()->getStructure();
 
 		if ( $back ) {
-			$this->key = $schema->getPrimary( $table );
-			$this->otherKey = $schema->getReference( $otherTable, $table );
+			$this->key = $structure->getPrimary( $table );
+			$this->otherKey = $structure->getReference( $otherTable, $table );
 		} else {
-			$this->key = $schema->getBackReference( $table, $otherTable );
-			$this->otherKey = $schema->getPrimary( $otherTable );
+			$this->key = $structure->getBackReference( $table, $otherTable );
+			$this->otherKey = $structure->getPrimary( $otherTable );
 		}
 	}
 
@@ -32,7 +34,7 @@ class Eager {
 	 *
 	 */
 	function exec() {
-		$db = $this->query->getDatabase();
+		$db = $this->query->getContext();
 		$eager = $this->query->late()->where(
 			$this->key,
 			$db->getKnownKeys( $this->other->getTable(), $this->otherKey )

@@ -2,11 +2,7 @@
 
 namespace LessQL;
 
-class Schema {
-
-	function __construct( $db ) {
-		$this->db = $db;
-	}
+class Structure {
 
 	/**
 	 *
@@ -258,9 +254,6 @@ class Schema {
 	}
 
 	//
-
-	/** @var Database */
-	protected $db;
 
 	/** @var array */
 	protected $tables = array();

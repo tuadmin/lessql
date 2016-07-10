@@ -5,14 +5,18 @@ namespace LessQL;
 /**
  * Represents an arbitrary SQL fragment with bound params.
  * Can be prepared and executed.
+ *
+ * Immutable
  */
 class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Constructor
+	 *
+	 * @param Context $context
 	 */
-	function __construct( $db, $sql, $params = array() ) {
-		$this->db = $db;
+	function __construct( $context, $sql, $params = array() ) {
+		$this->context = $context;
 		$this->sql = $sql;
 		$this->params = $params;
 	}
@@ -36,7 +40,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function prepare( $params = null ) {
 		if ( $params !== null ) return $this->bind( $params )->prepare();
-		return $this->db->createPrepared( $this );
+		return $this->context->createPrepared( $this );
 	}
 
 	/**
@@ -48,7 +52,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	function exec( $params = null ) {
 		if ( $params !== null ) return $this->bind( $params )->exec();
 		if ( $this->eager ) return $this->eager->exec();
-		return $this->db->exec( $this, $params );
+		return $this->context->exec( $this, $params );
 	}
 
 	/**
@@ -106,16 +110,16 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function query( $name, $where = null, $params = array() ) {
 
-		$schema = $this->db->getSchema();
+		$schema = $this->context->getStructure();
 		$fullName = $name;
 		$name = preg_replace( '/List$/', '', $fullName );
 		$table = $schema->getAlias( $name );
 		$back = $name === $fullName;
 
 		if ( $back ) {
-			$query = $this->db->query( $table )->referencing( $this );
+			$query = $this->context->query( $table )->referencing( $this );
 		} else {
-			$query = $this->db->query( $table )->referencedBy( $this );
+			$query = $this->context->query( $table )->referencedBy( $this );
 		}
 
 		if ( $where !== null ) return $query->where( $where, $params );
@@ -148,7 +152,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function where( $condition, $params = array() ) {
 		return $this->bind( array(
-			'where' => $this->db->where( $condition, $params, @$this->params[ 'where' ] )
+			'where' => $this->context->where( $condition, $params, @$this->params[ 'where' ] )
 		) );
 	}
 
@@ -161,7 +165,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function whereNot( $key, $value = null ) {
 		return $this->bind( array(
-			'where' => $this->db->whereNot( $key, $value, @$this->params[ 'where' ] )
+			'where' => $this->context->whereNot( $key, $value, @$this->params[ 'where' ] )
 		) );
 	}
 
@@ -174,7 +178,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function orderBy( $column, $direction = "ASC" ) {
 		return $this->bind( array(
-			'orderBy' => $this->db->orderBy( $column, $direction, @$this->params[ 'orderBy' ] )
+			'orderBy' => $this->context->orderBy( $column, $direction, @$this->params[ 'orderBy' ] )
 		) );
 	}
 
@@ -187,7 +191,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function limit( $count = null, $offset = null ) {
 		return $this->bind( array(
-			'limit' => $this->db->limit( $count, $offset )
+			'limit' => $this->context->limit( $count, $offset )
 		) );
 	}
 
@@ -208,7 +212,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function referencedBy( $other ) {
 		$clone = clone $this;
-		$clone->eager = $this->db->createEager( $this, $other, true );
+		$clone->eager = $this->context->createEager( $this, $other, true );
 		return $clone;
 	}
 
@@ -217,7 +221,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function referencing( $other ) {
 		$clone = clone $this;
-		$clone->eager = $this->db->createEager( $this, $other );
+		$clone->eager = $this->context->createEager( $this, $other );
 		return $clone;
 	}
 
@@ -240,6 +244,20 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 *
+	 */
+	function update( $data ) {
+		return $this->exec()->update( $data );
+	}
+
+	/**
+	 *
+	 */
+	function delete() {
+		return $this->exec()->delete();
+	}
+
+	/**
 	 * Return primary table of this fragment
 	 *
 	 * @return string|null
@@ -250,10 +268,10 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * @return Database
+	 * @return Context
 	 */
-	function getDatabase() {
-		return $this->db;
+	function getContext() {
+		return $this->context;
 	}
 
 	/**
@@ -271,7 +289,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return string
 	 */
 	function __toString() {
-		return $this->resolve()->sql;
+		try {
+			return $this->resolve()->sql;
+		} catch ( \Exception $ex ) {
+			var_dump( $ex );
+		}
 	}
 
 	//
@@ -310,7 +332,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 		if ( $this->resolved ) return $this->resolved;
 
-		$db = $this->db;
+		$context = $this->context;
 		$resolved = '';
 		$params = array();
 		$tokens = $this->getTokens();
@@ -347,7 +369,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 			case self::TOKEN_DOUBLE_QUESTION_MARK:
 				if ( array_key_exists( $q, $this->params ) ) {
-					$r = $db->quoteValue( $this->params[ $q ] );
+					$r = $context->quoteValue( $this->params[ $q ] );
 				}
 				++$q;
 				break;
@@ -355,7 +377,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 			case self::TOKEN_DOUBLE_COLON_MARKER:
 				$key = substr( $key, 1 );
 				if ( array_key_exists( $key, $this->params ) ) {
-					$r = $db->quoteValue( $this->params[ $key ] );
+					$r = $context->quoteValue( $this->params[ $key ] );
 				}
 				break;
 
@@ -363,7 +385,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( !$this->table ) {
 					$this->table = $key;
 				}
-				$r = $db->quoteIdentifier( $db->getSchema()->rewrite( $key ) );
+				$r = $context->quoteIdentifier( $context->getStructure()->rewrite( $key ) );
 				break;
 			}
 
@@ -379,7 +401,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 		}
 
-		$this->resolved = $db( $resolved, $params );
+		$this->resolved = $context( $resolved, $params );
 		$this->resolved->resolved = $this->resolved;
 
 		return $this->resolved;
@@ -476,8 +498,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	const TOKEN_OTHER = 13;
 
-	/** @var Database */
-	protected $db;
+	/** @var Context */
+	protected $context;
 
 	/** @var string */
 	protected $sql;

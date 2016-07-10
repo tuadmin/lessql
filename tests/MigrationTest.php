@@ -11,8 +11,6 @@ class MigrationTest extends BaseTest {
 		$migration->apply( "drop", "DROP TABLE lol" );
 		$migration->apply( "create", "CREATE TABLE lol (id INT)" );
 
-		var_dump( json_encode( $migration ) );
-
 	}
 
 }

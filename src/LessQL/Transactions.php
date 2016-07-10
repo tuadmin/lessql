@@ -3,7 +3,7 @@
 namespace LessQL;
 
 /**
- * Transaction manager
+ * Transaction manager, allows for nested transactions
  */
 class Transactions {
 

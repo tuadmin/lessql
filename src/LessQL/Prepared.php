@@ -4,6 +4,8 @@ namespace LessQL;
 
 /**
  * Represents a prepared SQL statement
+ *
+ * Immutable
  */
 class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 
@@ -12,7 +14,7 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function __construct( $statement ) {
 		$this->statement = $statement;
-		$this->pdoStatement = $this->statement->getDatabase()->getPdo()
+		$this->pdoStatement = $this->statement->getContext()->getPdo()
 			->prepare( (string) $statement );
 	}
 

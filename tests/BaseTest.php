@@ -205,7 +205,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	static function quoteIdentifier( $id ) {
 
-		$db = new \LessQL\Database( self::pdo() );
+		$db = new \LessQL\Context( self::pdo() );
 		return $db->quoteIdentifier( $id );
 
 	}
@@ -223,25 +223,25 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function db( $identifierDelimiter = '`' ) {
 
-		$db = new \LessQL\Database( self::pdo(), array(
+		$db = new \LessQL\Context( self::pdo(), array(
 			'beforeExec' => array( $this, 'beforeExec' ),
 			'identifierDelimiter' => $identifierDelimiter
 		) );
 
-		$schema = $db->getSchema();
-		$schema->addTables( array(
+		$structure = $db->getStructure();
+		$structure->addTables( array(
 			'post',
 			'user',
 			'category',
 			'categorization',
 			'dummy'
 		) );
-		$schema->setAlias( 'author', 'user' );
-		$schema->setAlias( 'editor', 'user' );
-		$schema->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
+		$structure->setAlias( 'author', 'user' );
+		$structure->setAlias( 'editor', 'user' );
+		$structure->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
 
-		$schema->setAlias( 'edit_post', 'post' );
-		$schema->setBackReference( 'user', 'edit_post', 'editor_id' );
+		$structure->setAlias( 'edit_post', 'post' );
+		$structure->setBackReference( 'user', 'edit_post', 'editor_id' );
 
 		return $db;
 
@@ -252,7 +252,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		$statement = trim( (string) $sql );
 		$params = $sql->getParams();
 
-		var_dump( $statement );
+		//var_dump( $statement );
 
 		if ( substr( $statement, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
 

@@ -5,7 +5,7 @@ require_once 'BaseTest.php';
 
 class RowTest extends BaseTest {
 
-	function xtestAccess() {
+	function testAccess() {
 
 		$db = $this->db();
 
@@ -50,7 +50,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestClean() {
+	function testClean() {
 
 		$db = $this->db();
 
@@ -80,7 +80,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestId() {
+	function testId() {
 
 		$db = $this->db();
 
@@ -130,7 +130,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestData() {
+	function testData() {
 
 		$db = $this->db();
 
@@ -156,7 +156,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestDelete() {
+	function testDelete() {
 
 		$db = $this->db();
 
@@ -173,7 +173,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestSave() {
+	function testSave() {
 
 		$db = $this->db();
 
@@ -212,7 +212,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestJsonSerialize() {
+	function testJsonSerialize() {
 
 		$db = $this->db();
 
@@ -244,7 +244,7 @@ class RowTest extends BaseTest {
 
 	//
 
-	function xtestReferenced() {
+	function testReferenced() {
 
 		$db = $this->db();
 
@@ -307,7 +307,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestEmptyRow() {
+	function testEmptyRow() {
 
 		$db = $this->db();
 
@@ -321,7 +321,7 @@ class RowTest extends BaseTest {
 
 	}
 
-	function xtestHasProperty() {
+	function testHasProperty() {
 
 		$db = $this->db();
 

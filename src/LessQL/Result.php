@@ -3,8 +3,10 @@
 namespace LessQL;
 
 /**
- * Represents the result of a SQL statement
- * May contain rows, the number of affected rows, and an insert id
+ * Represents the result of a SQL statement.
+ * May contain rows, the number of affected rows, and an insert id.
+ *
+ * Immutable
  */
 class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
@@ -21,7 +23,12 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 			$this->affected = $source->rowCount();
 		}
 
-		$this->rows = array_map( array( $this, 'createRow' ), $this->rows );
+		$self = $this;
+		$this->rows = array_map( function ( $data ) use ( $statement ) {
+			return $statement->getContext()
+				->createRow( $statement->getTable(), $data )
+				->setClean();
+		}, $this->rows );
 		$this->count = count( $this->rows );
 		$this->insertId = $insertId;
 	}
@@ -53,10 +60,16 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		return $this->insertId;
 	}
 
+	/**
+	 *
+	 */
 	function getTable() {
 		return $this->statement->getTable();
 	}
 
+	/**
+	 *
+	 */
 	function getKeys( $key ) {
 
 		$keys = array();
@@ -71,12 +84,44 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Create row (internal use only)
+	 *
 	 */
-	protected function createRow( $data ) {
-		return $this->statement->getDatabase()
-			->createRow( $this->statement->getTable(), $data )
-			->setClean();
+	function update( $data ) {
+		$context = $this->statement->getContext();
+		return $context->update( $this->getTable(), $data, $this->wherePrimary() );
+	}
+
+	/**
+	 *
+	 */
+	function delete() {
+		$context = $this->statement->getContext();
+		return $context->delete( $this->getTable(), $this->wherePrimary() );
+	}
+
+	/**
+	 *
+	 */
+	protected function wherePrimary() {
+
+		$context = $this->statement->getContext();
+		$table = $this->getTable();
+		$primary = $context->getStructure()->getPrimary( $table );
+
+		if ( is_array( $primary ) ) {
+			$or = array();
+			foreach ( $this->rows as $row ) {
+				$and = array();
+				foreach ( $primary as $column ) {
+					$and[] = $context->is( $column, $row->__get( $column ) );
+				}
+				$or[] = "( " . implode( " AND ", $and ) . " )";
+			}
+			return $context( implode( " OR ", $or ) );
+		}
+
+		return $context->where( $primary, $this->getKeys( $primary ) );
+
 	}
 
 	//

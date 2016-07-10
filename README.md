@@ -20,7 +20,7 @@ LessQL is a lightweight and performant alternative to Object-Relational Mapping 
 
 // Connection
 $pdo = new PDO( 'sqlite:blog.sqlite3' );
-$db = new LessQL\Database( $pdo );
+$db = new LessQL\Context( $pdo );
 
 // Find posts, their authors and categories efficiently:
 // Eager loading of references happens automatically.
@@ -30,7 +30,7 @@ $posts = $db->post()
 	->orderBy( 'date_published', 'DESC' );
 
 foreach ( $posts as $post ) {
-	$author = $post->user()->fetch();
+	$author = $post->user()->first();
 
 	foreach ( $post->categorizationList()->category() as $category ) {
 		// ...

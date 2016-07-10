@@ -289,9 +289,12 @@ class DatabaseTest extends BaseTest {
 		} );
 
 		$db->runTransaction( function ( $db ) {
-			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->update( array( 'test' => 42 ) );
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->update( array( 'test' => 42 ) );
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->update( array( 'test' => 42 ) );
+			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )
+				->update( array( 'test' => 42 ) )->exec();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )
+				->update( array( 'test' => 42 ) )->exec();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )
+				->update( array( 'test' => 42 ) )->exec();
 		} );
 
 		$this->assertEquals( array(
@@ -346,9 +349,9 @@ class DatabaseTest extends BaseTest {
 		} );
 
 		$db->runTransaction( function ( $db ) {
-			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->delete();
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->delete();
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->delete();
+			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->delete()->exec();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->delete()->exec();
+			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->delete()->exec();
 		} );
 
 		$this->assertEquals( array(

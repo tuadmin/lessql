@@ -3,30 +3,22 @@
 namespace LessQL;
 
 /**
- * Represents a row of an SQL statement
+ * Represents a database row. May contain nested rows
  */
 class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
 	 * Constructor
-	 * Use $db->createRow() instead
+	 * Use $context->createRow() instead
 	 *
-	 * @param Database|SQL $dbOrStatement The database or the associated Statement
+	 * @param Context $context The database context
+	 * @param string|null $table The source table of this row, if any
 	 * @param array $properties Associative row data, may include referenced rows
-	 * @param Result|null $result
 	 */
-	function __construct( $dbOrStatement, $table, $properties = array() ) {
-
-		if ( $dbOrStatement instanceof SQL ) {
-			$this->_db = $dbOrStatement->getDatabase();
-			$this->_statement = $dbOrStatement;
-		} else {
-			$this->_db = $dbOrStatement;
-		}
-
+	function __construct( $context, $table, $properties = array() ) {
+		$this->_context = $context;
 		$this->_table = $table;
 		$this->setData( $properties );
-
 	}
 
 	/**
@@ -63,16 +55,16 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		if ( is_array( $value ) ) {
 
 			$name = preg_replace( '/List$|_list$/', '', $column );
-			$table = $this->getDatabase()->getSchema()->getAlias( $name );
+			$table = $this->getContext()->getStructure()->getAlias( $name );
 
 			if ( $name === $column ) { // row
 
-				$value = $this->getDatabase()->createRow( $table, $value );
+				$value = $this->getContext()->createRow( $table, $value );
 
 			} else { // list
 
 				foreach ( $value as $i => $v ) {
-					$value[ $i ] = $this->getDatabase()->createRow( $table, $v );
+					$value[ $i ] = $this->getContext()->createRow( $table, $v );
 				}
 
 			}
@@ -115,7 +107,6 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return mixed
 	 */
 	function __call( $name, $args ) {
-		var_dump( $name );
 		array_unshift( $args, $name );
 		return call_user_func_array( array( $this, 'query' ), $args );
 	}
@@ -131,12 +122,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function query( $name, $where = null, $params = array() ) {
 
-		$schema = $this->getDatabase()->getSchema();
+		$schema = $this->getContext()->getStructure();
 		$fullName = $name;
 		$name = preg_replace( '/List$/', '', $fullName );
 		$table = $schema->getAlias( $name );
 		$single = $name === $fullName;
-		$query = $this->getDatabase()->query( $table );
+		$query = $this->getContext()->query( $table );
 
 		if ( $single ) {
 			$query = $query->referencedBy( $this )
@@ -159,7 +150,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function getId() {
 
-		$primary = $this->getDatabase()->getSchema()->getPrimary( $this->getTable() );
+		$primary = $this->getContext()->getStructure()->getPrimary( $this->getTable() );
 
 		if ( is_array( $primary ) ) {
 
@@ -257,8 +248,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function save( $recursive = true ) {
 
-		$db = $this->getDatabase();
-		$schema = $db->getSchema();
+		$context = $this->getContext();
+		$schema = $context->getStructure();
 		$table = $this->getTable();
 
 		if ( !$recursive ) { // just save the row
@@ -277,12 +268,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 						$idCondition = array( $primary => $idCondition );
 					}
 
-					$db->update( $table, $this->getModified(), $idCondition )->exec();
+					$context->update( $table, $this->getModified(), $idCondition )->exec();
 					$this->setClean();
 
 				} else {
 
-					$result = $db->insert( $table, $this->getData() )->exec();
+					$result = $context->insert( $table, $this->getData() )->exec();
 
 					if ( !is_array( $primary ) && !isset( $this[ $primary ] ) ) {
 						$id = $result->getInsertId();
@@ -380,13 +371,13 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function updateReferences() {
 
 		$unknown = array();
-		$db = $this->getDatabase();
+		$context = $this->getContext();
 
 		foreach ( $this->_properties as $column => $value ) {
 
 			if ( $value instanceof Row ) {
 
-				$key = $db->getSchema()->getReference( $this->getTable(), $column );
+				$key = $context->getStructure()->getReference( $this->getTable(), $column );
 				$this[ $key ] = $value->getId();
 
 			}
@@ -408,13 +399,13 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		if ( is_array( $id ) ) return $this;
 
-		$db = $this->getDatabase();
+		$context = $this->getContext();
 
 		foreach ( $this->_properties as $column => $value ) {
 
 			if ( is_array( $value ) ) {
 
-				$key = $db->getSchema()->getBackReference( $this->getTable(), $column );
+				$key = $context->getStructure()->getBackReference( $this->getTable(), $column );
 
 				foreach ( $value as $row ) {
 					$row->{ $key } = $id;
@@ -436,7 +427,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function getMissing() {
 
 		$missing = array();
-		$required = $this->getDatabase()->getSchema()->getRequired( $this->getTable() );
+		$required = $this->getContext()->getStructure()->getRequired( $this->getTable() );
 
 		foreach ( $required as $column => $true ) {
 
@@ -468,18 +459,18 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 */
 	function delete() {
 
-		$db = $this->getDatabase();
+		$context = $this->getContext();
 		$table = $this->getTable();
 		$idCondition = $this->getOriginalId();
 
 		if ( $idCondition === null ) return $this;
 
 		if ( !is_array( $idCondition ) ) {
-			$primary = $db->getSchema()->getPrimary( $table );
+			$primary = $context->getStructure()->getPrimary( $table );
 			$idCondition = array( $primary => $idCondition );
 		}
 
-		$db->delete( $table, $idCondition )->exec();
+		$context->delete( $table, $idCondition )->exec();
 		$this->_originalId = null;
 		return $this->setDirty();
 
@@ -538,19 +529,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	}
 
 	/**
-	 * Get the database
+	 * Get the database context
 	 *
-	 * @return Database
+	 * @return Context
 	 */
-	function getDatabase() {
-		return $this->_db;
-	}
-
-	/**
-	 * Return statement associated with this row, if any
-	 */
-	function getStatement() {
-		return $this->_statement;
+	function getContext() {
+		return $this->_context;
 	}
 
 	/**
@@ -657,14 +641,11 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	//
 
-	/** @var Statement|null */
-	protected $_statement;
-
 	/** @var string|null */
 	protected $_table;
 
-	/** @var Database|null */
-	protected $_db;
+	/** @var Context|null */
+	protected $_context;
 
 	/** @var array */
 	protected $_properties = array();

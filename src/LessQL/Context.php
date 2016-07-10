@@ -8,8 +8,9 @@ namespace LessQL;
  *
  * Essentially wraps a PDO object with an improved API.
  * Also serves as a caching context.
+ * Immutable, except for referenced Structure and caching.
  */
-class Database {
+class Context {
 
 	/**
 	 * Constructor. Sets PDO to exception mode.
@@ -23,7 +24,7 @@ class Database {
 
 		$this->pdo = $pdo;
 		$this->transactions = new Transactions( $pdo );
-		$this->schema = new Schema( $this );
+		$this->structure = new Structure( $this );
 		$this->beforeExec = @$options[ 'beforeExec' ];
 
 		if ( @$options[ 'identifierDelimiter' ] ) {
@@ -71,8 +72,8 @@ class Database {
 	 */
 	function __call( $name, $args ) {
 
-		$schema = $this->getSchema();
-		if ( !$schema->hasTable( $name ) ) {
+		$structure = $this->getStructure();
+		if ( !$structure->hasTable( $name ) ) {
 			throw new Exception( 'Unknown table: ' . $name );
 		}
 
@@ -101,8 +102,8 @@ class Database {
 		if ( $id !== null ) {
 
 			if ( !is_array( $id ) ) {
-				$table = $this->getSchema()->getAlias( $table );
-				$primary = $this->getSchema()->getPrimary( $table );
+				$table = $this->getStructure()->getAlias( $table );
+				$primary = $this->getStructure()->getPrimary( $table );
 				$id = array( $primary => $id );
 			}
 
@@ -638,11 +639,11 @@ class Database {
 	}
 
 	/**
-	 * Return schema manager
+	 * Return structure manager
 	 * @return \PDO
 	 */
-	function getSchema() {
-		return $this->schema;
+	function getStructure() {
+		return $this->structure;
 	}
 
 	/**
@@ -685,7 +686,7 @@ class Database {
 		// execute statement via PDO
 		$pdoStatement = $this->pdo->prepare( $string );
 		$pdoStatement->execute( $resolved->getParams() );
-		$sequence = $this->getSchema()->getSequence( $sql->getTable() );
+		$sequence = $this->getStructure()->getSequence( $sql->getTable() );
 		$insertId = $this->pdo->lastInsertId( $sequence );
 
 		// write to cache
@@ -716,6 +717,8 @@ class Database {
 
 	/**
 	 * Return new database context with empty cache
+	 *
+	 * @return Context
 	 */
 	function clear() {
 		$clone = clone $this;
@@ -728,8 +731,8 @@ class Database {
 	/** @var \PDO */
 	protected $pdo;
 
-	/** @var Schema */
-	protected $schema;
+	/** @var Structure */
+	protected $structure;
 
 	/** @var string */
 	protected $identifierDelimiter = '`';

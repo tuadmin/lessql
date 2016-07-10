@@ -10,11 +10,11 @@ class Migration implements \JsonSerializable {
 	/**
 	 * Constructor
 	 *
-	 * @param Database $db
+	 * @param Context $context
 	 * @param string $path Path to history file. Must be writable, otherwise throws
 	 */
-	function __construct( $db, $path ) {
-		$this->db = $db;
+	function __construct( $context, $path ) {
+		$this->context = $context;
 		$this->path = $path;
 		$this->history = is_file( $path ) ? require $this->path : array();
 		// ensure history is writable
@@ -45,9 +45,9 @@ class Migration implements \JsonSerializable {
 		$self = $this;
 
 		try {
-			$this->db->runTransaction( function () use ( $self, $id, $action, $params ) {
+			$this->context->runTransaction( function () use ( $self, $id, $action, $params ) {
 				if ( is_string( $action ) ) {
-					$this->db->createSQL( $action )->exec( $params );
+					$this->context->createSQL( $action )->exec( $params );
 				} else {
 					$action( $self, $params );
 				}
@@ -122,8 +122,8 @@ class Migration implements \JsonSerializable {
 		);
 	}
 
-	/** @var Database */
-	protected $db;
+	/** @var Context */
+	protected $context;
 
 	/** @var string */
 	protected $path;
