@@ -22,7 +22,10 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * @param array $params
+	 * Return a new SQL fragment with the given parameter(s)
+	 *
+	 * @param array|string $params
+	 * @param mixed $value
 	 * @return SQL
 	 */
 	function bind( $params, $value = null ) {
@@ -67,6 +70,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Execute and return first row in result, if any
+	 *
+	 * @return Row|null
 	 */
 	function first() {
 		return $this->exec()->first();
@@ -74,6 +79,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Executed and return affected rows, if any
+	 *
+	 * @return int
 	 */
 	function affected() {
 		return $this->exec()->affected();
@@ -81,6 +88,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Execute and return inserted id, if any
+	 *
+	 * @return string
 	 */
 	function getInsertId() {
 		return $this->exec()->getInsertId();
@@ -104,11 +113,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * Query referenced table. Suffix "List" gets many rows
 	 *
 	 * @param string $name
-	 * @param string|array|null $where
+	 * @param string|array $where
 	 * @param array $params
 	 * @return SQL
 	 */
-	function query( $name, $where = null, $params = array() ) {
+	function query( $name, $where = array(), $params = array() ) {
 
 		$schema = $this->context->getStructure();
 		$fullName = $name;
@@ -122,8 +131,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 			$query = $this->context->query( $table )->referencedBy( $this );
 		}
 
-		if ( $where !== null ) return $query->where( $where, $params );
-		return $query;
+		return $query->where( $where, $params );
 
 	}
 
@@ -132,14 +140,21 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/**
 	 * Add a SELECT expression
 	 *
-	 * @param string|array $expr
-	 * @param string|array $params
-	 * @return Result
+	 * @param string|SQL $expr
+	 * @return SQL
 	 */
 	function select( $expr ) {
-		$before = (string) @$this->params[ 'select' ] === '*' ? array() : $this->params[ 'select' ];
+		$before = (string) @$this->params[ 'select' ];
+		if ( !$before || (string) $before === '*' ) {
+			$before = '';
+		} else {
+			$before .= ', ';
+		}
+
 		return $this->bind( array(
-			'select' => array_merge( $before, $this->quoteIdentifier( func_get_args() ) )
+			'select' => $this->context->createSQL(
+				$before . $this->context->quoteIdentifier( func_get_args() )
+			)
 		) );
 	}
 
@@ -147,8 +162,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * Add a WHERE condition (multiple are combined with AND)
 	 *
 	 * @param string|array $condition
-	 * @param string|array $params
-	 * @return Result
+	 * @param mixed|array $params
+	 * @return SQL
 	 */
 	function where( $condition, $params = array() ) {
 		return $this->bind( array(
@@ -157,11 +172,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Add a "$column is not $value" condition to WHERE (multiple are combined with AND)
+	 * Return new SQL with a "$column is not $value" condition added to WHERE (multiple are combined with AND)
 	 *
 	 * @param string|array $column
-	 * @param string|array|null $value
-	 * @return $this
+	 * @param mixed $value
+	 * @return SQL
 	 */
 	function whereNot( $key, $value = null ) {
 		return $this->bind( array(
@@ -170,11 +185,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Add an ORDER BY column and direction
+	 * Return new SQL with added ORDER BY column and direction
 	 *
 	 * @param string $column
 	 * @param string $direction
-	 * @return $this
+	 * @return SQL
 	 */
 	function orderBy( $column, $direction = "ASC" ) {
 		return $this->bind( array(
@@ -183,11 +198,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Set a result limit and optionally an offset
+	 * Return new SQL with result limit and optionally an offset
 	 *
-	 * @param int $count
+	 * @param int|null $count
 	 * @param int|null $offset
-	 * @return $this
+	 * @return SQL
 	 */
 	function limit( $count = null, $offset = null ) {
 		return $this->bind( array(
@@ -196,19 +211,23 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Set a paged limit
+	 * Return new SQL with paged limit.
 	 * Pages start at 1
 	 *
 	 * @param int $pageSize
 	 * @param int $page
-	 * @return $this
+	 * @return SQL
 	 */
 	function paged( $pageSize, $page ) {
 		return $this->limit( $pageSize, ( $page - 1 ) * $pageSize );
 	}
 
 	/**
+	 * Return new SQL filtered by references from $other.
+	 * Eagerly loaded.
 	 *
+	 * @param Row|Result|SQL $other
+	 * @return SQL
 	 */
 	function referencedBy( $other ) {
 		$clone = clone $this;
@@ -217,7 +236,11 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Return new SQL filtered by references to $other.
+	 * Eagerly loaded.
 	 *
+	 * @param Row|Result|SQL $other
+	 * @return SQL
 	 */
 	function referencing( $other ) {
 		$clone = clone $this;
@@ -226,7 +249,10 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Return new SQL using a different reference key
 	 *
+	 * @param string $key
+	 * @return SQL
 	 */
 	function via( $key ) {
 		$clone = clone $this;
@@ -235,7 +261,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Return new SQL not filtered by references
 	 *
+	 * @return SQL
 	 */
 	function late() {
 		$clone = clone $this;
@@ -244,14 +272,15 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 *
+	 * @param array $data
+	 * @return SQL
 	 */
 	function update( $data ) {
 		return $this->exec()->update( $data );
 	}
 
 	/**
-	 *
+	 * @return SQL
 	 */
 	function delete() {
 		return $this->exec()->delete();
@@ -309,6 +338,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Countable
+	 *
+	 * @return int
 	 */
 	function count() {
 		return $this->exec()->count();
@@ -316,6 +347,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * JsonSerializable
+	 *
+	 * @return int
 	 */
 	function jsonSerialize() {
 		return $this->exec()->jsonSerialize();
@@ -328,7 +361,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 *
 	 * @return SQL
 	 */
-	function resolve( $offset = 0 ) {
+	function resolve() {
 
 		if ( $this->resolved ) return $this->resolved;
 
@@ -339,16 +372,12 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$count = count( $tokens );
 		$q = 0;
 
+		static $offset = 0;
+
 		for ( $i = 0; $i < $count; ++$i ) {
 
-			foreach ( $params as $key => $value ) {
-				if ( $m = preg_match( '/p(\d+)/', $key ) ) {
-					$offset = max( $offset, intval( $m[ 1 ] ) + 1 );
-				}
-			}
-
 			list( $type, $string ) = $tokens[ $i ];
-			$r = null;
+			$r = $string;
 			$key = substr( $string, 1 );
 
 			switch ( $type ) {
@@ -356,6 +385,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( array_key_exists( $q, $this->params ) ) {
 					$params[ 'p' . $offset ] = $this->params[ $q ];
 					$r = ':p' . $offset;
+					++$offset;
 				}
 				++$q;
 				break;
@@ -364,6 +394,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( array_key_exists( $key, $this->params ) ) {
 					$params[ 'p' . $offset ] = $this->params[ $key ];
 					$r = ':p' . $offset;
+					++$offset;
 				}
 				break;
 
@@ -393,11 +424,12 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( !$this->table && $r->getTable() ) {
 					$this->table = $r->getTable();
 				}
-				$r = $r->resolve( $offset );
+
+				$r = $r->resolve();
 				$params = array_merge( $r->getParams(), $params );
 			}
 
-			$resolved .= $r === null ? $string : $r;
+			$resolved .= $r;
 
 		}
 

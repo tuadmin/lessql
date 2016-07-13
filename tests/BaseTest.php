@@ -252,7 +252,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		$statement = trim( (string) $sql );
 		$params = $sql->getParams();
 
-		//var_dump( $statement );
+		var_dump( $statement );
 
 		if ( substr( $statement, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
 

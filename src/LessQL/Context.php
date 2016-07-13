@@ -6,9 +6,12 @@ namespace LessQL;
  * Represents a database context,
  * capable of writing SQL statements and fragments.
  *
- * Essentially wraps a PDO object with an improved API.
+ * Essentially wraps a PDO connection with an improved API.
  * Also serves as a caching context.
  * Immutable, except for referenced Structure and caching.
+ *
+ * For transaction safety, do not construct multiple contexts per PDO connection.
+ * Instead, clone or ->clear() a context.
  */
 class Context {
 
@@ -49,17 +52,18 @@ class Context {
 	 * Create an SQL fragment from a string
 	 *
 	 * Examples:
-	 * $db( "SELECT * FROM post" )
+	 * $db( "SELECT * FROM &post" )
 	 *
 	 * @param string|SQL $sql
 	 * @param array $params
+	 * @return SQL
 	 */
 	function __invoke( $sql = '', $params = array() ) {
 		return $this->createSQL( $sql, $params );
 	}
 
 	/**
-	 * Returns a result for table $name.
+	 * Returns a query for table $name.
 	 * If $id is given, return the row with that id.
 	 *
 	 * Examples:
@@ -68,7 +72,7 @@ class Context {
 	 *
 	 * @param string $name
 	 * @param array $args
-	 * @return Result|Row|null
+	 * @return SQL|Row|null
 	 */
 	function __call( $name, $args ) {
 
@@ -87,7 +91,7 @@ class Context {
 	 *
 	 * @param $name
 	 * @param int|null $id
-	 * @return Result|Row|null
+	 * @return SQL|Row|null
 	 */
 	function query( $table, $id = null ) {
 
@@ -119,7 +123,7 @@ class Context {
 	 * Build an insert statement to insert a single row
 	 *
 	 * @param string $table
-	 * @param array $row
+	 * @param array|\Traversable $row
 	 * @return SQL
 	 */
 	function insert( $table, $row ) {
@@ -157,7 +161,7 @@ class Context {
 	 *
 	 * @param string $table
 	 * @param array $rows
-	 * @return Result
+	 * @return Result The insert result for the last row
 	 */
 	function insertPrepared( $table, $rows ) {
 
@@ -236,9 +240,9 @@ class Context {
 	 * UPDATE $table SET $data [WHERE $where]
 	 *
 	 * @param string $table
-	 * @param array $data
-	 * @param array $where
-	 * @param array $params
+	 * @param array|\Traversable $data
+	 * @param array|string $where
+	 * @param array|mixed $params
 	 * @return SQL
 	 */
 	function update( $table, $data, $where = array(), $params = array() ) {
@@ -260,8 +264,8 @@ class Context {
 	 * DELETE FROM $table [WHERE $where]
 	 *
 	 * @param string $table
-	 * @param array $where
-	 * @param array $params
+	 * @param array|string $where
+	 * @param array|mixed $params
 	 * @return SQL
 	 */
 	function delete( $table, $where = array(), $params = array() ) {
@@ -276,6 +280,11 @@ class Context {
 
 	/**
 	 * Build a conditional expression fragment
+	 *
+	 * @param array|string $condition
+	 * @param array|mixed $params
+	 * @param SQL|null $before
+	 * @return SQL
 	 */
 	function where( $condition = null, $params = array(), $before = null ) {
 
@@ -310,6 +319,11 @@ class Context {
 
 	/**
 	 * Build a negated conditional expression fragment
+	 *
+	 * @param string $key
+	 * @param mixed $value
+	 * @param SQL|null $before
+	 * @return SQL
 	 */
 	function whereNot( $key, $value = array(), $before = null ) {
 
@@ -335,6 +349,11 @@ class Context {
 
 	/**
 	 * Build an ORDER BY fragment
+	 *
+	 * @param string $column
+	 * @param string $direction
+	 * @param SQL|null $before
+	 * @return SQL
 	 */
 	function orderBy( $column, $direction = 'ASC', $before = null ) {
 
@@ -351,6 +370,10 @@ class Context {
 
 	/**
 	 * Build a LIMIT fragment
+	 *
+	 * @param int $count
+	 * @param int $offset
+	 * @return SQL
 	 */
 	function limit( $count = null, $offset = null ) {
 
@@ -379,9 +402,9 @@ class Context {
 	 * and fragments like new SQL( "NOW()" ) correctly.
 	 *
 	 * @param string $column
-	 * @param string|array $value
+	 * @param mixed|array $value
 	 * @param bool $not
-	 * @return string
+	 * @return SQL
 	 */
 	function is( $column, $value, $not = false ) {
 
@@ -448,11 +471,11 @@ class Context {
 	/**
 	 * Build an SQL condition expressing that "$column is not $value"
 	 * or "$column is not in $value" if $value is an array. Handles null
-	 * and fragments like new SQL( "NOW()" ) correctly.
+	 * and fragments like $db( "NOW()" ) correctly.
 	 *
 	 * @param string $column
-	 * @param string|array $value
-	 * @return string
+	 * @param mixed|array $value
+	 * @return SQL
 	 */
 	function isNot( $column, $value ) {
 		return $this->is( $column, $value, true );
@@ -460,6 +483,9 @@ class Context {
 
 	/**
 	 * Build an assignment fragment, e.g. for UPDATE
+	 *
+	 * @param array|\Traversable $data
+	 * @return SQL
 	 */
 	function assign( $data ) {
 
@@ -477,7 +503,7 @@ class Context {
 	 * Quote a value for SQL
 	 *
 	 * @param mixed $value
-	 * @return string
+	 * @return SQL
 	 */
 	function quoteValue( $value ) {
 
@@ -518,10 +544,10 @@ class Context {
 	}
 
 	/**
-	 * Quote identifier
+	 * Quote identifier(s)
 	 *
-	 * @param string $identifier
-	 * @return string
+	 * @param mixed $identifier
+	 * @return SQL
 	 */
 	function quoteIdentifier( $identifier ) {
 
@@ -547,7 +573,10 @@ class Context {
 	}
 
 	/**
+	 * Validate and return a LessQL table reference
 	 *
+	 * @param string $name
+	 * @return SQL A fragment with a & prefix
 	 */
 	function table( $name ) {
 		if ( !preg_match( '([a-zA-Z_$][a-zA-Z0-9_$]+)', $name ) ) {
@@ -560,9 +589,14 @@ class Context {
 
 	/**
 	 * Run a transaction
+	 *
+	 * Supports nested transactions
+	 *
+	 * @param callable $t The transaction body
+	 * @return mixed The return value of $fn
 	 */
-	function runTransaction( $fn ) {
-		return $this->transactions->run( $fn, $this );
+	function runTransaction( $t ) {
+		return $this->transactions->run( $t, $this );
 	}
 
 	// Factories
@@ -570,9 +604,8 @@ class Context {
 	/**
 	 * Create an SQL statement, optionally with bound params
 	 *
-	 * @param string $name
-	 * @param array $properties
-	 * @param Result|null $result
+	 * @param string|SQL $name
+	 * @param array $params
 	 * @return SQL
 	 */
 	function createSQL( $sql, $params = array() ) {
@@ -583,19 +616,18 @@ class Context {
 	/**
 	 * Create a prepared statement from a statement
 	 *
-	 * @param Statement $statement
+	 * @param string|SQL $statement
 	 * @return Prepared
 	 */
 	function createPrepared( $statement ) {
-		return new Prepared( $statement );
+		return new Prepared( $this( $statement ) );
 	}
 
 	/**
-	 * Create a row from given properties.
+	 * Create a row from given properties
 	 *
 	 * @param string $table
 	 * @param array $properties
-	 * @param Result|null $result
 	 * @return Row
 	 */
 	function createRow( $table, $properties = array() ) {
@@ -603,7 +635,7 @@ class Context {
 	}
 
 	/**
-	 * Create a result from a statement and row data
+	 * Create a result from a statement and row data. Internal
 	 *
 	 * @param SQL $statement
 	 * @param PDO|array $source
@@ -616,13 +648,19 @@ class Context {
 
 	/**
 	 * Create a migration
+	 *
+	 * @param string $path
+	 * @return Migration
 	 */
 	function createMigration( $path ) {
 		return new Migration( $this, $path );
 	}
 
 	/**
-	 * Create an eager loading policy
+	 * Create an eager loading policy. Internal
+	 *
+	 * @param SQL $statement
+	 * @return Eager
 	 */
 	function createEager( $statement, $other, $back = false ) {
 		return new Eager( $statement, $other, $back );
@@ -631,7 +669,8 @@ class Context {
 	//
 
 	/**
-	 * Return wrapped PDO
+	 * Return wrapped PDO. Internal
+	 *
 	 * @return \PDO
 	 */
 	function getPdo() {
@@ -640,7 +679,8 @@ class Context {
 
 	/**
 	 * Return structure manager
-	 * @return \PDO
+	 *
+	 * @return Structure
 	 */
 	function getStructure() {
 		return $this->structure;
@@ -658,10 +698,12 @@ class Context {
 	//
 
 	/**
-	 * Internal. Execute an SQL statement and return the result,
-	 * or return result from cache.
+	 * Execute an SQL statement and return the result,
+	 * or return result from cache. Internal
 	 *
 	 * @param SQL $sql
+	 * @param array $params
+	 * @return Result
 	 */
 	function exec( $sql, $params = array() ) {
 
@@ -697,7 +739,11 @@ class Context {
 	}
 
 	/**
-	 * Internal. Get known keys from result cache
+	 * Get known keys from result cache. Internal
+	 *
+	 * @param string $table
+	 * @param string $column
+	 * @return array
 	 */
 	function getKnownKeys( $table, $column ) {
 
@@ -706,7 +752,8 @@ class Context {
 		foreach ( $this->resultCache as $result ) {
 			if ( $result->getTable() === $table ) {
 				foreach ( $result as $row ) {
-					$keys[] = $row[ $column ];
+					$value = $row[ $column ];
+					if ( $value ) $keys[] = $value;
 				}
 			}
 		}

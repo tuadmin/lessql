@@ -10,7 +10,11 @@ namespace LessQL;
 class Eager {
 
 	/**
+	 * Constructor. Internal
 	 *
+	 * @param SQL $query
+	 * @param Row|Result|SQL $other
+	 * @param bool $back
 	 */
 	function __construct( $query, $other, $back = false ) {
 		$this->query = $query;
@@ -31,7 +35,9 @@ class Eager {
 	}
 
 	/**
+	 * Internal
 	 *
+	 * @return Result
 	 */
 	function exec() {
 		$db = $this->query->getContext();
@@ -50,7 +56,10 @@ class Eager {
 	}
 
 	/**
+	 * Internal
 	 *
+	 * @param string $key
+	 * @return Eager
 	 */
 	function via( $key ) {
 		$clone = clone $this;

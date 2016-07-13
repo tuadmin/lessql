@@ -8,8 +8,7 @@ namespace LessQL;
 class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
-	 * Constructor
-	 * Use $context->createRow() instead
+	 * Constructor. Internal, use $context->createRow() instead
 	 *
 	 * @param Context $context The database context
 	 * @param string|null $table The source table of this row, if any
@@ -420,7 +419,8 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	}
 
 	/**
-	 * Get missing columns, i.e. any that is null but required by the schema
+	 * Get missing columns, i.e. any that is null but required by the schema.
+	 * Internal
 	 *
 	 * @return array
 	 */
@@ -455,7 +455,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	/**
 	 * Delete this row
 	 *
-	 * @return $this|Row
+	 * @return $this
 	 */
 	function delete() {
 

@@ -3,7 +3,7 @@
 require_once 'vendor/autoload.php';
 require_once 'BaseTest.php';
 
-class DatabaseTest extends BaseTest {
+class ContextTest extends BaseTest {
 
 	function testQuoteValue() {
 

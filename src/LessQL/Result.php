@@ -61,14 +61,15 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 *
+	 * @return string
 	 */
 	function getTable() {
 		return $this->statement->getTable();
 	}
 
 	/**
-	 *
+	 * @param string $key
+	 * @return array
 	 */
 	function getKeys( $key ) {
 
@@ -84,7 +85,8 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 *
+	 * @param array $data
+	 * @return SQL
 	 */
 	function update( $data ) {
 		$context = $this->statement->getContext();
@@ -92,7 +94,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 *
+	 * @return SQL
 	 */
 	function delete() {
 		$context = $this->statement->getContext();
@@ -100,7 +102,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 *
+	 * @return SQL
 	 */
 	protected function wherePrimary() {
 
@@ -137,6 +139,8 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * Countable
+	 *
+	 * @return int
 	 */
 	function count() {
 		return $this->count;
@@ -144,6 +148,8 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
 	 * JsonSerializable
+	 *
+	 * @return array
 	 */
 	function jsonSerialize() {
 		return $this->rows;

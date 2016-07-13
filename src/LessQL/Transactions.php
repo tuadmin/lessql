@@ -8,28 +8,31 @@ namespace LessQL;
 class Transactions {
 
 	/**
+	 * Constructor
 	 *
+	 * @param \PDO $pdo
 	 */
 	function __construct( $pdo ) {
 		$this->pdo = $pdo;
 	}
 
 	/**
-	 *
+	 * @param callable $t The transaction body
+	 * @return mixed The return value of $t
 	 */
-	function run( $fn, $db = null ) {
+	function run( $t, $db = null ) {
 
-		if ( !is_callable( $fn ) ) {
+		if ( !is_callable( $t ) ) {
 			throw new Exception( 'Transaction must be callable' );
 		}
 
-		if ( $this->active ) return $fn( $db );
+		if ( $this->active ) return $t( $db );
 
 		$this->pdo->beginTransaction();
 		$this->active = true;
 
 		try {
-			$return = $fn( $db );
+			$return = $t( $db );
 			$this->pdo->commit();
 			$this->active = false;
 			return $return;

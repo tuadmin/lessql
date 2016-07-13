@@ -76,7 +76,7 @@ class FindTest extends BaseTest {
 			"SELECT * FROM `dummy` WHERE test = 31",
 			"SELECT * FROM `dummy` WHERE test = :p0",
 			"SELECT * FROM `dummy` WHERE test = :p0",
-			"SELECT * FROM `dummy` WHERE (test < :p0) AND test > :p1",
+			"SELECT * FROM `dummy` WHERE (test < :p0) AND test > :p1"
 		), $this->statements );
 
 		$this->assertEquals( array(
@@ -223,7 +223,9 @@ class FindTest extends BaseTest {
 
 		$db = $this->db();
 
-		$json = json_encode( $db->user()->select( 'id' ) );
+		$ids = $db->user()->select( 'id' );
+		var_dump( "WOW", (string) $ids );
+		$json = json_encode( $ids );
 		$expected = '[{"id":"1"},{"id":"2"},{"id":"3"}]';
 		$this->assertEquals( $expected, $json );
 
@@ -234,10 +236,8 @@ class FindTest extends BaseTest {
 	 * expectedExceptionMessage "post_id" does not exist in "user" result
 	 */
 	function testBadReference() {
-
 		$db = $this->db();
 		$db->user()->post()->exec();
-
 	}
 
 }

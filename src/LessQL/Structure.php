@@ -5,16 +5,19 @@ namespace LessQL;
 class Structure {
 
 	/**
-	 *
+	 * @param array $tables
+	 * @return $this
 	 */
 	function addTables( $tables ) {
 		foreach ( $tables as $table ) {
 			$this->tables[ $table ] = true;
 		}
+		return $this;
 	}
 
 	/**
-	 *
+	 * @param string $table
+	 * @return bool
 	 */
 	function hasTable( $table ) {
 		return empty( $this->tables ) || @$this->tables[ $table ];
