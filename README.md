@@ -4,9 +4,9 @@
 [![Test Coverage](https://codeclimate.com/github/morris/lessql/badges/coverage.svg)](https://codeclimate.com/github/morris/lessql/coverage)
 [![Join the chat at https://gitter.im/morris/lessql](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/morris/lessql?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-LessQL is a lightweight and performant alternative to Object-Relational Mapping for PHP.
-
-### [LessQL.net](http://lessql.net)
+A lightweight and performant alternative to Object-Relational Mapping for PHP.
+Features a novel, intuitive approach to SQL writing.
+Read more at __[LessQL.net](http://lessql.net)__
 
 
 ## Usage
@@ -55,24 +55,32 @@ $row->save();
 ```
 
 
+## Features
+
+- Efficient deep finding through intelligent eager loading
+- Constant number of queries, no N+1 problems
+- Truly blend with raw [SQL](docs/sql.md) at any time
+- Save complex, nested structures with one method call
+- [Convention](docs/conventions.md) over configuration
+- Concise and intuitive [API](docs/api.md)
+- Novel [migration framework](docs/migrations.md) for idempotent migrations
+- Work closely to your database: LessQL is not an ORM
+- Fully tested with SQLite3, MySQL and PostgreSQL
+
+Inspired mainly by NotORM, it was written from scratch to provide a clean API and simplified concepts. [About LessQL](docs/about.md)
+
+
 ## Installation
 
 Install LessQL via composer: `composer require morris/lessql`.
 LessQL requires PHP >= 5.3.4 and PDO.
 
 
-## Features
+## Documentation
 
-- Efficient deep finding through intelligent eager loading
-- Constant number of queries, no N+1 problems
-- Save complex, nested structures with one method call
-- Convention over configuration
-- Work closely to your database: LessQL is not an ORM
-- No glue code required
-- Clean, readable source code
-- Fully tested with SQLite3, MySQL and PostgreSQL
-- MIT license
-
-Inspired mainly by NotORM, it was written from scratch to provide a clean API and simplified concepts.
-
-### For full documentation and examples, see the [homepage](http://lessql.net).
+- [Guide](docs/guide.md)
+- [Conventions](docs/conventions.md)
+- [SQL](docs/sql.md)
+- [Migrations](docs/migrations.md)
+- [API](docs/api.md)
+- [About](docs/about.md)
