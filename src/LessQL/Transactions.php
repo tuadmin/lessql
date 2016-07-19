@@ -37,8 +37,8 @@ class Transactions {
 			$this->active = false;
 			return $return;
 		} catch ( \Exception $ex ) {
-			$this->pdo->rollBack();
 			$this->active = false;
+			$this->pdo->rollBack();
 			throw $ex;
 		}
 
