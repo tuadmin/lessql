@@ -1,7 +1,5 @@
 <?php
 
-require_once 'vendor/autoload.php';
-
 class BaseTest extends PHPUnit_Framework_TestCase {
 
 	// static
@@ -14,30 +12,9 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		if ( isset( self::$pdo ) ) return;
 
 		// database
-		self::pdo();
+		self::$pdo = $GLOBALS[ 'PDO' ];
 		self::schema();
 		self::reset();
-
-	}
-
-	static function pdo() {
-
-		if ( self::$pdo ) return self::$pdo;
-
-		// sqlite
-		self::$pdo = new \PDO( 'sqlite:tests/shop.sqlite3' );
-
-		// mysql
-		//self::$pdo = new \PDO( 'mysql:host=localhost;dbname=test', 'root', 'pass' );
-
-		// postgres
-		//self::$pdo = new \PDO( 'pgsql:host=localhost;port=5432;dbname=test;user=postgres;password=pass' );
-
-		//
-
-		self::$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-
-		return self::$pdo;
 
 	}
 
@@ -54,22 +31,16 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		//
 
 		if ( self::driver() === 'sqlite' ) {
-
 			$p = "INTEGER PRIMARY KEY AUTOINCREMENT";
-
 		}
 
 		if ( self::driver() === 'mysql' ) {
-
 			$p = "INTEGER PRIMARY KEY AUTO_INCREMENT";
-
 		}
 
 		if ( self::driver() === 'pgsql' ) {
-
 			self::$db->setIdentifierDelimiter( '"' );
 			$p = "SERIAL PRIMARY KEY";
-
 		}
 
 		self::query( "DROP TABLE IF EXISTS " . self::quoteIdentifier( "user" ) );
@@ -205,7 +176,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	static function quoteIdentifier( $id ) {
 
-		$db = new \LessQL\Context( self::pdo() );
+		$db = new \LessQL\Context( self::$pdo );
 		return $db->quoteIdentifier( $id );
 
 	}
@@ -223,10 +194,10 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function db( $identifierDelimiter = '`' ) {
 
-		$db = new \LessQL\Context( self::pdo(), array(
-			'beforeExec' => array( $this, 'beforeExec' ),
+		$db = new \LessQL\Context( self::$pdo, array(
 			'identifierDelimiter' => $identifierDelimiter
 		) );
+		$db->on( 'exec', array( $this, 'beforeExec' ) );
 
 		$structure = $db->getStructure();
 		$structure->addTables( array(

@@ -9,11 +9,8 @@ namespace LessQL;
  * Essentially wraps a PDO connection with an improved API.
  * Also serves as a caching context.
  * Immutable, except for referenced Structure and caching.
- *
- * For transaction safety, do not construct multiple contexts per PDO connection.
- * Instead, clone or ->clear() a context.
  */
-class Context {
+class Context extends EventEmitter {
 
 	/**
 	 * Constructor. Sets PDO to exception mode.
@@ -23,28 +20,11 @@ class Context {
 	 */
 	function __construct( $pdo, $options = array() ) {
 
-		$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
-
-		$this->pdo = $pdo;
-		$this->transactions = new Transactions( $pdo );
-		$this->structure = new Structure( $this );
-		$this->beforeExec = @$options[ 'beforeExec' ];
-
-		if ( @$options[ 'identifierDelimiter' ] ) {
-			$this->identifierDelimiter = $options[ 'identifierDelimiter' ];
-		}
-
-		try {
-			$pdo->exec( "SET sql_mode='NO_BACKSLASH_ESCAPES'" );
-		} catch ( \PDOException $ex ) {
-			//var_dump( (string) $ex );
-		}
-
-		try {
-			$pdo->exec( "SET standard_conforming_strings=on" );
-		} catch ( \PDOException $ex ) {
-			//var_dump( (string) $ex );
-		}
+		$this->connection = Connection::get( $pdo );
+		$this->structure = @$options[ 'structure' ] ?
+			$options[ 'structure' ] : new Structure();
+		$this->identifierDelimiter = @$options[ 'identifierDelimiter' ] ?
+			$options[ 'identifierDelimiter' ] : '"';
 
 	}
 
@@ -521,7 +501,7 @@ class Context {
 		if ( $value === false ) $value = '0';
 		if ( $value === true ) $value = '1';
 
-		return $this( $this->pdo->quote( $value ) );
+		return $this( $this->getPdo()->quote( $value ) );
 
 	}
 
@@ -596,7 +576,7 @@ class Context {
 	 * @return mixed The return value of $fn
 	 */
 	function runTransaction( $t ) {
-		return $this->transactions->run( $t, $this );
+		return $this->connection->runTransaction( $t, $this );
 	}
 
 	// Factories
@@ -674,7 +654,7 @@ class Context {
 	 * @return \PDO
 	 */
 	function getPdo() {
-		return $this->pdo;
+		return $this->connection->init();
 	}
 
 	/**
@@ -721,15 +701,13 @@ class Context {
 		$result = @$this->resultCache[ $key ];
 		if ( $result ) return $result;
 
-		if ( $this->beforeExec ) {
-			call_user_func( $this->beforeExec, $sql );
-		}
+		$this->emit( 'exec', $sql );
 
 		// execute statement via PDO
-		$pdoStatement = $this->pdo->prepare( $string );
+		$pdoStatement = $this->getPdo()->prepare( $string );
 		$pdoStatement->execute( $resolved->getParams() );
 		$sequence = $this->getStructure()->getSequence( $sql->getTable() );
-		$insertId = $this->pdo->lastInsertId( $sequence );
+		$insertId = $this->getPdo()->lastInsertId( $sequence );
 
 		// write to cache
 		$result = $this->resultCache[ $key ] = $this->createResult( $sql, $pdoStatement, $insertId );
@@ -775,20 +753,14 @@ class Context {
 
 	//
 
-	/** @var \PDO */
-	protected $pdo;
+	/** @var Connection */
+	protected $connection;
 
 	/** @var Structure */
 	protected $structure;
 
 	/** @var string */
-	protected $identifierDelimiter = '`';
-
-	/** @var Transactions */
-	protected $transactions;
-
-	/** @var null|callable */
-	protected $beforeExec;
+	protected $identifierDelimiter = '"';
 
 	/** @var array */
 	protected $resultCache = array();

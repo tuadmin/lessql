@@ -16,7 +16,6 @@
 - Aggregation functions where removed, use custom SQL for that
 - Transactions are run with `$context->runTransaction( $callable )` and can be nested
 - LessQL now throws `LessQL\Exception` where appropriate
-- Added `Exception`, `Structure`, `Prepared`, and `Migration` classes
 
 ## v0.x.x
 

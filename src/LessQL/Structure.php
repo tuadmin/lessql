@@ -2,6 +2,9 @@
 
 namespace LessQL;
 
+/**
+ * Represents a database structure, i.e. tables, primary keys, foreign keys, etc.
+ */
 class Structure {
 
 	/**

@@ -5,12 +5,23 @@ php:
   - "5.4"
   - "5.3"
 
+services:
+  - mysql
+  - postgresql
+
+env:
+  - BOOTSTRAP=sqlite
+  - BOOTSTRAP=mysql
+  - BOOTSTRAP=postgresql
+
 before_script:
   - composer self-update
   - composer install --prefer-dist
+  - mysql -e 'create database if not exists lessql;'
+  - psql -c 'create database if not exists lessql;' -U postgres
 
 script:
-  - vendor/bin/phpunit --coverage-clover=build/logs/clover.xml tests
+  - vendor/bin/phpunit --bootstrap=tests/$BOOTSTRAP.php --coverage-clover=build/logs/clover.xml tests
 
 after_script:
   - vendor/bin/test-reporter

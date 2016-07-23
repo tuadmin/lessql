@@ -1,8 +1,5 @@
 <?php
 
-require_once 'vendor/autoload.php';
-require_once 'BaseTest.php';
-
 class ContextTest extends BaseTest {
 
 	function testQuoteValue() {

@@ -1,11 +1,8 @@
 <?php
 
-require_once 'vendor/autoload.php';
-require_once 'BaseTest.php';
-
 class MigrationTest extends BaseTest {
 
-	function testHasProperty() {
+	function testBasic() {
 
 		$migration = $this->db()->createMigration( 'tests/migration.php' );
 		$migration->apply( "drop", "DROP TABLE lol" );

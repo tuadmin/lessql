@@ -3,7 +3,7 @@
 LessQL relies entirely on two conventions:
 
 - Primary key columns should be `id`
-- Foreign key columns should be `&lt;table>_id`
+- Foreign key columns should be `<table>_id`
 
 A side effect of these conventions is to use __singular table names__,
 because plurals are irregular and `product.categories_id` sounds wrong.
@@ -15,7 +15,7 @@ two columns in one table pointing to the same foreign table.
 
 LessQL provides solutions for all of these use cases.
 This section contains real-world examples showing how to define
-alternate primary keys, assocations and reference keys.
+alternate primary keys, associations and reference keys.
 
 Because SQL is case-insensitive, you should always use
 `snake_case` for table names, column names, and aliases.
@@ -45,7 +45,7 @@ You can use alternate foreign keys in associations using `via`:
 foreach ( $db->post() as $post ) {
 
 	// single: use post.author_id instead of post.user_id
-	$author = $post->user()->via( 'author_id' )->fetch();
+	$author = $post->user()->via( 'author_id' )->first();
 
 	// list: use category.featured_post_id instead of category.post_id
 	$featureCategories = $post->categoryList()->via( 'featured_post_id' );

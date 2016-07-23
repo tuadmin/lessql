@@ -503,10 +503,6 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		$id = $this->getId();
 
-		if ( $id === null ) {
-			throw new Exception( 'Cannot set row "clean" without id' );
-		}
-
 		$this->_originalId = $id;
 		$this->_modified = array();
 
