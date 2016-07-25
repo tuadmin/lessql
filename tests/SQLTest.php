@@ -21,13 +21,13 @@ class SQLTest extends BaseTest {
 		) );
 
 		$this->assertEquals(
-			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3') :p0",
-			(string) $s
+			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3') :p_",
+			str_replace( '"', '`', preg_replace( '/:p\d+/', ':p_', (string) $s ) )
 		);
 
 		$this->assertEquals(
-			array( 'p0' => array( 1, 2, 3 ) ),
-			$s->resolve()->getParams()
+			array( array( 1, 2, 3 ) ),
+			array_values( $s->resolve()->getParams() )
 		);
 
 	}

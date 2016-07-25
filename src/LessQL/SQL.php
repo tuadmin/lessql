@@ -104,7 +104,6 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return SQL
 	 */
 	function __call( $name, $args ) {
-		var_dump( $name );
 		array_unshift( $args, $name );
 		return call_user_func_array( array( $this, 'query' ), $args );
 	}
@@ -118,21 +117,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return SQL
 	 */
 	function query( $name, $where = array(), $params = array() ) {
-
-		$schema = $this->context->getStructure();
-		$fullName = $name;
-		$name = preg_replace( '/List$/', '', $fullName );
-		$table = $schema->getAlias( $name );
-		$back = $name === $fullName;
-
-		if ( $back ) {
-			$query = $this->context->query( $table )->referencing( $this );
-		} else {
-			$query = $this->context->query( $table )->referencedBy( $this );
-		}
-
-		return $query->where( $where, $params );
-
+		return $this->getContext()->queryRef( $this, $name, $where, $params );
 	}
 
 	//
@@ -321,7 +306,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		try {
 			return $this->resolve()->sql;
 		} catch ( \Exception $ex ) {
-			var_dump( $ex );
+			return $ex->getMessage();
 		}
 	}
 

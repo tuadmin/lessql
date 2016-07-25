@@ -34,6 +34,18 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Query referenced table. Suffix "List" gets many rows
+	 *
+	 * @param string $name
+	 * @param string|array $where
+	 * @param array $params
+	 * @return SQL
+	 */
+	function query( $name, $where = array(), $params = array() ) {
+		return $this->getContext()->queryRef( $this, $name, $where, $params );
+	}
+
+	/**
 	 * Return first row in result, if any
 	 *
 	 * @return Row
@@ -65,6 +77,13 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function getTable() {
 		return $this->statement->getTable();
+	}
+
+	/**
+	 * @return Context
+	 */
+	function getContext() {
+		return $this->statement->getContext();
 	}
 
 	/**
@@ -152,7 +171,11 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return array
 	 */
 	function jsonSerialize() {
-		return $this->rows;
+		$rows = array();
+		foreach ( $this->rows as $row ) {
+			$rows[] = $row->jsonSerialize();
+		}
+		return $rows;
 	}
 
 	//

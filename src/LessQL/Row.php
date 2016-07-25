@@ -27,14 +27,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return mixed
 	 */
 	function &__get( $column ) {
-
 		if ( !isset( $this->_properties[ $column ] ) ) {
 			$null = null;
 			return $null;
 		}
 
 		return $this->_properties[ $column ];
-
 	}
 
 	/**
@@ -117,30 +115,11 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @param string $name
 	 * @param string|array|null $where
 	 * @param array $params
-	 * @return Result
+	 * @return SQL
 	 */
-	function query( $name, $where = null, $params = array() ) {
-
-		$schema = $this->getContext()->getStructure();
-		$fullName = $name;
-		$name = preg_replace( '/List$/', '', $fullName );
-		$table = $schema->getAlias( $name );
-		$single = $name === $fullName;
-		$query = $this->getContext()->query( $table );
-
-		if ( $single ) {
-			$query = $query->referencedBy( $this )
-				->via( $schema->getReference( $this->getTable(), $name ) );
-		} else {
-			$query = $query->referencing( $this )
-				->via( $schema->getBackReference( $this->getTable(), $name ) );
-		}
-
-		if ( $where !== null ) return $query->where( $where, $params );
-
-		return $query;
-
-	}
+	function query( $name, $where = array(), $params = array() ) {
+ 		return $this->getContext()->queryRef( $this, $name, $where, $params );
+ 	}
 
 	/**
 	 * Get the row's id
@@ -248,7 +227,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	function save( $recursive = true ) {
 
 		$context = $this->getContext();
-		$schema = $context->getStructure();
+		$structure = $context->getStructure();
 		$table = $this->getTable();
 
 		if ( !$recursive ) { // just save the row
@@ -257,7 +236,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 			if ( !$this->isClean() ) {
 
-				$primary = $schema->getPrimary( $table );
+				$primary = $structure->getPrimary( $table );
 
 				if ( $this->exists() ) {
 

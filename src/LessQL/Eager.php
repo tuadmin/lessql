@@ -40,10 +40,10 @@ class Eager {
 	 * @return Result
 	 */
 	function exec() {
-		$db = $this->query->getContext();
+		$context = $this->query->getContext();
 		$eager = $this->query->late()->where(
 			$this->key,
-			$db->getKnownKeys( $this->other->getTable(), $this->otherKey )
+			$context->getKnownKeys( $this->other->getTable(), $this->otherKey )
 		);
 		$otherKeys = $this->other->getKeys( $this->otherKey );
 		$rows = array();
@@ -52,7 +52,7 @@ class Eager {
 				$rows[] = $row;
 			}
 		}
-		return $db->createResult( $this->query, $rows );
+		return $context->createResult( $this->query, $rows );
 	}
 
 	/**

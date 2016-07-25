@@ -14,7 +14,7 @@ class Connection {
 	 * Get Connection instance for PDO instance
 	 *
 	 * @param \PDO
-	 * @return Transactions
+	 * @return Connection
 	 */
 	static function get( $pdo ) {
 		foreach ( self::$instances as $instance ) {
@@ -46,9 +46,10 @@ class Connection {
 	 *
 	 * Sets connection settings etc.
 	 *
+	 * @param EventEmitter $emitter
 	 * @return \PDO
 	 */
-	function init( $context = null ) {
+	function init( $emitter = null ) {
 
 		if ( $this->init ) return $this->pdo;
 
@@ -56,14 +57,14 @@ class Connection {
 		try {
 			$this->pdo->exec( "SET sql_mode='NO_BACKSLASH_ESCAPES'" );
 		} catch ( \PDOException $ex ) {
-			if ( $context ) $context->emit( 'init', $ex );
+			if ( $emitter ) $emitter->emit( 'init', $ex );
 		}
 
 		// enable standard strings (double quotes are used for identifiers)
 		try {
 			$this->pdo->exec( "SET standard_conforming_strings=on" );
 		} catch ( \PDOException $ex ) {
-			if ( $context ) $context->emit( 'init', $ex );
+			if ( $emitter ) $emitter->emit( 'init', $ex );
 		}
 
 		$this->init = true;

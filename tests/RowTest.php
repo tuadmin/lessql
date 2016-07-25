@@ -65,18 +65,6 @@ class RowTest extends BaseTest {
 
 	}
 
-	/**
-	 * @expectedException \LessQL\Exception
-	 */
-	function testCleanEx() {
-
-		$db = $this->db();
-
-		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
-		$row->setClean();
-
-	}
-
 	function testId() {
 
 		$db = $this->db();

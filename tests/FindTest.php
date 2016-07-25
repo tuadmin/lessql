@@ -71,9 +71,10 @@ class FindTest extends BaseTest {
 			"SELECT * FROM `dummy` WHERE `test` != '31'",
 			"SELECT * FROM `dummy` WHERE `test` IN ( '1', '2', '3' )",
 			"SELECT * FROM `dummy` WHERE test = 31",
-			"SELECT * FROM `dummy` WHERE test = :p0",
-			"SELECT * FROM `dummy` WHERE test = :p0",
-			"SELECT * FROM `dummy` WHERE (test < :p0) AND test > :p1"
+			"SELECT * FROM `dummy` WHERE test = :p_",
+			"SELECT * FROM `dummy` WHERE test = :p_",
+			"SELECT * FROM `dummy` WHERE test = :p_",
+			"SELECT * FROM `dummy` WHERE (test < :p_) AND test > :p_"
 		), $this->statements );
 
 		$this->assertEquals( array(
@@ -85,8 +86,8 @@ class FindTest extends BaseTest {
 			array(),
 			array( 31 ),
 			array( 32 ),
-			array( 'param' => 31 ),
-			array( 'a' => 31, 'b' => 0 ),
+			array( 31 ),
+			array( 0, 31 )
 		), $this->params );
 
 	}
@@ -141,7 +142,9 @@ class FindTest extends BaseTest {
 
 			$author = $post->author()->first();
 			$editor = $post->editor()->first();
-			$editor2 = $post->editor( 'id > ?', 0 )->first();
+			$editor2 = $post->editor( 'id > ?', array( 0 ) );
+			var_dump( (string) $editor2 );
+			$editor2->exec();
 
 			if ( $author ) $this->assertTrue( $author->exists() );
 			if ( $editor ) $this->assertTrue( $editor->exists() );
@@ -154,19 +157,17 @@ class FindTest extends BaseTest {
 			$t[ 'categories' ] = array();
 
 			foreach ( $post->categorizationList()->category() as $category ) {
-
 				$t[ 'categories' ][] = $category->title;
-
 			}
 
-			$post->categorizationList()->category( 'id > ?', 0 )->exec();
+			$post->categorizationList()->category( 'id > ?', array( 1 ) )->exec();
 
 			$posts[] = $t;
 
 		}
 
 		$this->assertEquals( array(
-			"SELECT * FROM `post` ORDER BY `date_published` DESC",
+			"SELECT * FROM `post` WHERE 1=1 ORDER BY `date_published` DESC",
 			"SELECT * FROM `user` WHERE `id` IN ( '2', '1' )",
 			"SELECT * FROM `user` WHERE `id` IN ( '3', '2' )",
 			"SELECT * FROM `user` WHERE id > ? AND `id` IN ( '3', '2' )",
@@ -221,7 +222,6 @@ class FindTest extends BaseTest {
 		$db = $this->db();
 
 		$ids = $db->user()->select( 'id' );
-		var_dump( "WOW", (string) $ids );
 		$json = json_encode( $ids );
 		$expected = '[{"id":"1"},{"id":"2"},{"id":"3"}]';
 		$this->assertEquals( $expected, $json );

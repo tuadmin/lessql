@@ -44,7 +44,7 @@ class ContextTest extends BaseTest {
 
 	function testQuoteIdentifier() {
 
-		$db = $this->db( '`' );
+		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
 
 		$a = array(
 			$db->quoteIdentifier( 'foo' ),
@@ -52,7 +52,7 @@ class ContextTest extends BaseTest {
 			$db->quoteIdentifier( 'foo`.bar' ),
 		);
 
-		$db = $this->db( '"' );
+		$db = $this->db( array( 'identifierDelimiter' => '"' ) );
 
 		$a[] = $db->quoteIdentifier( 'foo.bar' );
 
@@ -81,7 +81,7 @@ class ContextTest extends BaseTest {
 
 	function testIs() {
 
-		$db = $this->db( '`' );
+		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
 
 		$a = array(
 			$db->is( 'foo', null ),
@@ -115,7 +115,7 @@ class ContextTest extends BaseTest {
 
 	function testIsNot() {
 
-		$db = $this->db( '`' );
+		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
 
 		$a = array(
 			$db->isNot( 'foo', null ),
@@ -230,10 +230,10 @@ class ContextTest extends BaseTest {
 		), $this->statements );
 
 		$this->assertEquals( array(
-			array( 1 ),
-			array( 2 ),
-			array( 3 ),
-		), $this->params );
+			array( 'test' => 1 ),
+			array( 'test' => 2 ),
+			array( 'test' => 3 )
+		), $db->dummy()->select( 'test' )->jsonSerialize() );
 
 	}
 
@@ -274,14 +274,14 @@ class ContextTest extends BaseTest {
 			$db->update( 'dummy', array( 'test' => 42 ) )->where( 'test', 1 )->exec();
 
 			$statements = $self->statements;
-			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) );
-			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) );
-			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) );
-			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) );
-			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) );
-			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) );
-			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) );
-			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) );
+			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) )->exec();
 			$self->statements = $statements;
 		} );
 
@@ -290,36 +290,19 @@ class ContextTest extends BaseTest {
 				->update( array( 'test' => 42 ) )->exec();
 			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )
 				->update( array( 'test' => 42 ) )->exec();
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )
+			$db->dummy()->where( 'test > 42' )
 				->update( array( 'test' => 42 ) )->exec();
 		} );
 
 		$this->assertEquals( array(
 			"UPDATE `dummy` SET `test` = '42' WHERE 1=1",
 			"UPDATE `dummy` SET `test` = '42' WHERE `test` = '1'",
-			"SELECT * FROM `dummy` WHERE test > 42 LIMIT 2 OFFSET 2",
+			"SELECT * FROM `dummy` WHERE test > 42  LIMIT 2 OFFSET 2",
 			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '4', '5' )",
 			"SELECT * FROM `dummy` WHERE test > 42 ORDER BY `test` ASC LIMIT 2",
 			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '6', '1' )",
-			"UPDATE `dummy` SET `test` = '42' WHERE test > 42"
-		), $this->statements );
-
-	}
-
-	function testUpdatePrimary() {
-
-		$db = $this->db();
-
-		$db->runTransaction( function ( $db ) {
-			$db->update( 'category', array( 'title' => 'Test Category' ) )
-				->where( 'id > 21' )
-				->limit( 2 )
-				->exec();
-		} );
-
-		$this->assertEquals( array(
-			"SELECT * FROM `category` WHERE id > 21 LIMIT 2",
-			"UPDATE `category` SET `title` = 'Test Category' WHERE `id` IN ( '22', '23' )",
+			"SELECT * FROM `dummy` WHERE test > 42",
+			"UPDATE `dummy` SET `test` = '42' WHERE `id` IN ( '3', '8' )"
 		), $this->statements );
 
 	}
@@ -330,50 +313,36 @@ class ContextTest extends BaseTest {
 		$self = $this;
 
 		$db->runTransaction( function ( $db ) use ( $self ) {
-			$db->dummy()->delete();
-			$db->dummy()->where( 'test', 1 )->delete();
+			$db->delete( 'dummy' )->exec();
+			$db->delete( 'dummy', array( 'test' => 1 ) )->exec();
 
 			$statements = $self->statements;
-			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) );
-			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) );
-			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) );
-			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) );
-			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) );
-			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) );
-			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) );
-			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) );
+			$db->insert( 'dummy', array( 'id' => 1, 'test' => 44 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 3, 'test' => 45 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 4, 'test' => 47 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 5, 'test' => 48 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 6, 'test' => 43 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 7, 'test' => 41 ) )->exec();
+			$db->insert( 'dummy', array( 'id' => 8, 'test' => 46 ) )->exec();
 			$self->statements = $statements;
 		} );
 
 		$db->runTransaction( function ( $db ) {
 			$db->dummy()->where( 'test > 42' )->limit( 2, 2 )->delete()->exec();
 			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->limit( 2 )->delete()->exec();
-			$db->dummy()->where( 'test > 42' )->orderBy( 'test' )->delete()->exec();
+			$db->dummy()->where( 'test > 42' )->delete()->exec();
 		} );
 
 		$this->assertEquals( array(
-			"DELETE FROM `dummy`",
+			"DELETE FROM `dummy` WHERE 1=1",
 			"DELETE FROM `dummy` WHERE `test` = '1'",
-			"SELECT * FROM `dummy` WHERE test > 42 LIMIT 2 OFFSET 2",
+			"SELECT * FROM `dummy` WHERE test > 42  LIMIT 2 OFFSET 2",
 			"DELETE FROM `dummy` WHERE `id` IN ( '4', '5' )",
 			"SELECT * FROM `dummy` WHERE test > 42 ORDER BY `test` ASC LIMIT 2",
 			"DELETE FROM `dummy` WHERE `id` IN ( '6', '1' )",
-			"DELETE FROM `dummy` WHERE test > 42"
-		), $this->statements );
-
-	}
-
-	function testDeletePrimary() {
-
-		$db = $this->db();
-
-		$db->runTransaction( function ( $db ) use ( $self ) {
-			$db->category()->where( 'id > 21' )->limit( 2 )->delete();
-		} );
-
-		$this->assertEquals( array(
-			"SELECT * FROM `category` WHERE id > 21 LIMIT 2",
-			"DELETE FROM `category` WHERE `id` IN ( '22', '23' )",
+			"SELECT * FROM `dummy` WHERE test > 42",
+			"DELETE FROM `dummy` WHERE `id` IN ( '3', '8' )",
 		), $this->statements );
 
 	}
@@ -384,11 +353,12 @@ class ContextTest extends BaseTest {
 		$self = $this;
 
 		$db->runTransaction( function ( $db ) use ( $self ) {
-			$db->categorization()->where( 'category_id > 21' )->limit( 2 )->delete();
+			$db->categorization()->where( 'category_id > 21' )->limit( 2 )
+				->delete()->exec();
 		} );
 
 		$this->assertEquals( array(
-			"SELECT * FROM `categorization` WHERE category_id > 21 LIMIT 2",
+			"SELECT * FROM `categorization` WHERE category_id > 21  LIMIT 2",
 			"DELETE FROM `categorization` WHERE ( `category_id` = '22' AND `post_id` = '11' ) OR ( `category_id` = '23' AND `post_id` = '11' )",
 		), $this->statements );
 

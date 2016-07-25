@@ -13,7 +13,7 @@ class EventEmitter {
 	 * @param string $event
 	 * @param mixed $data
 	 */
-	function emit( string $event, $data = null ) {
+	function emit( $event, $data = null ) {
 		if ( @$this->listeners[ $event ] ) {
 			foreach ( $this->listeners[ $event ] as $listener ) {
 				call_user_func( $listener, $data );
@@ -28,7 +28,7 @@ class EventEmitter {
 	 * @param string $event
 	 * @param callable $listener
 	 */
-	function on( string $event, callable $listener ) {
+	function on( $event, callable $listener ) {
 		if ( @$this->listeners[ $event ] ) {
 			$this->listeners[ $event ][] = $this->listeners;
 			return $this;

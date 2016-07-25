@@ -25,7 +25,22 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return Result
 	 */
 	function exec( $params = array() ) {
-		// TODO
+		$context = $this->statement->getContext();
+
+		try {
+			$context->emit( 'exec', $this->statement );
+			$this->pdoStatement->execute( $params );
+			$sequence = $context->getStructure()->getSequence( $this->statement->getTable() );
+			$insertId = $context->getPdo()->lastInsertId( $sequence );
+			return $context->createResult(
+				$this->statement,
+				$this->pdoStatement,
+				$insertId
+			);
+		} catch ( \Exception $ex ) {
+			$context->emit( 'error', $this->statement );
+			throw $ex;
+		}
 	}
 
 	/**

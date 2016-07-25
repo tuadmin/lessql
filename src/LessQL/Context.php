@@ -18,7 +18,7 @@ class Context extends EventEmitter {
 	 * @param \PDO $pdo
 	 * @param array $options
 	 */
-	function __construct( $pdo, $options = array() ) {
+	function __construct( $pdo, array $options = array() ) {
 
 		$this->connection = Connection::get( $pdo );
 		$this->structure = @$options[ 'structure' ] ?
@@ -266,11 +266,11 @@ class Context extends EventEmitter {
 	 * @param SQL|null $before
 	 * @return SQL
 	 */
-	function where( $condition = null, $params = array(), $before = null ) {
+	function where( $condition = null, $params = array(), SQL $before = null ) {
 
 		// empty condition evaluates to true
 		if ( empty( $condition ) ) {
-			return $this( $before ? $before : '1=1' );
+			return $before ? $before : $this( '1=1' );
 		}
 
 		// conditions in key-value array
@@ -290,7 +290,8 @@ class Context extends EventEmitter {
 		}
 
 		if ( $before && (string) $before !== '1=1' ) {
-			return $this( '(' . $before . ') AND ' . $condition );
+			return $this( '(' . $before . ') AND ::__condition', $before->resolve()->getParams() )
+				->bind( '__condition', $condition );
 		}
 
 		return $condition;
@@ -678,6 +679,34 @@ class Context extends EventEmitter {
 	//
 
 	/**
+	 * @param SQL|Result|Row $source
+	 * @param string $name
+	 * @param string|array $where
+	 * @param array $params
+	 * @return SQL
+	 */
+	function queryRef( $source, $name, $where = array(), $params = array() ) {
+
+		$structure = $this->getStructure();
+		$fullName = $name;
+		$name = preg_replace( '/List$/', '', $fullName );
+		$table = $structure->getAlias( $name );
+		$single = $name === $fullName;
+		$query = $this->query( $table );
+
+		if ( $single ) {
+			$query = $query->referencedBy( $source )
+				->via( $structure->getReference( $source->getTable(), $name ) );
+		} else {
+			$query = $query->referencing( $source )
+				->via( $structure->getBackReference( $source->getTable(), $name ) );
+		}
+
+		return $query->where( $where, $params );
+
+	}
+
+	/**
 	 * Execute an SQL statement and return the result,
 	 * or return result from cache. Internal
 	 *
@@ -704,10 +733,15 @@ class Context extends EventEmitter {
 		$this->emit( 'exec', $sql );
 
 		// execute statement via PDO
-		$pdoStatement = $this->getPdo()->prepare( $string );
-		$pdoStatement->execute( $resolved->getParams() );
-		$sequence = $this->getStructure()->getSequence( $sql->getTable() );
-		$insertId = $this->getPdo()->lastInsertId( $sequence );
+		try {
+			$pdoStatement = $this->getPdo()->prepare( $string );
+			$pdoStatement->execute( $resolved->getParams() );
+			$sequence = $this->getStructure()->getSequence( $sql->getTable() );
+			$insertId = $this->getPdo()->lastInsertId( $sequence );
+		} catch ( \Exception $ex ) {
+			$this->emit( 'error', $sql );
+			throw $ex;
+		}
 
 		// write to cache
 		$result = $this->resultCache[ $key ] = $this->createResult( $sql, $pdoStatement, $insertId );

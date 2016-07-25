@@ -13,6 +13,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 		// database
 		self::$pdo = $GLOBALS[ 'PDO' ];
+		self::$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
 		self::schema();
 		self::reset();
 
@@ -39,7 +40,6 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 		}
 
 		if ( self::driver() === 'pgsql' ) {
-			self::$db->setIdentifierDelimiter( '"' );
 			$p = "SERIAL PRIMARY KEY";
 		}
 
@@ -162,23 +162,13 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	}
 
-	static function clearTransaction() {
-		try {
-			self::$pdo->rollBack();
-		} catch ( \Exception $ex ) {
-			// ignore
-		}
-	}
-
 	static function query( $q ) {
 		return self::$pdo->query( $q );
 	}
 
 	static function quoteIdentifier( $id ) {
-
 		$db = new \LessQL\Context( self::$pdo );
 		return $db->quoteIdentifier( $id );
-
 	}
 
 	// instance
@@ -186,18 +176,15 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	protected $needReset = false;
 
 	function setUp() {
-
 		$this->statements = array();
 		$this->params = array();
-
 	}
 
-	function db( $identifierDelimiter = '`' ) {
+	function db( $options = array() ) {
 
-		$db = new \LessQL\Context( self::$pdo, array(
-			'identifierDelimiter' => $identifierDelimiter
-		) );
-		$db->on( 'exec', array( $this, 'beforeExec' ) );
+		$db = new \LessQL\Context( self::$pdo, $options );
+		$db->on( 'exec', array( $this, 'onExec' ) );
+		$db->on( 'error', array( $this, 'onError' ) );
 
 		$structure = $db->getStructure();
 		$structure->addTables( array(
@@ -218,25 +205,26 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	}
 
-	function beforeExec( $sql ) {
+	function onExec( $sql ) {
 
-		$statement = trim( (string) $sql );
-		$params = $sql->getParams();
+		$statement = preg_replace(
+			'/:p\d+/', ':p_', str_replace( '"', '`', trim( (string) $sql ) )
+		);
+		$params = array_values( $sql->resolve()->getParams() );
 
-		var_dump( $statement );
+		if ( strtoupper( substr( $statement, 0, 6 ) ) !== 'SELECT' ) $this->needReset = true;
 
-		if ( substr( $statement, 0, 6 ) !== 'SELECT' ) $this->needReset = true;
-
-		$this->statements[] = str_replace( '"', '`', $statement );
+		$this->statements[] = $statement;
 		$this->params[] = $params;
 
 	}
 
+	function onError( $sql ) {
+		var_dump( (string) $sql );
+	}
+
 	function tearDown() {
-
-		self::clearTransaction();
 		if ( $this->needReset ) self::reset();
-
 	}
 
 	function testDummy() {
