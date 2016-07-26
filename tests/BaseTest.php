@@ -207,10 +207,8 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	function onExec( $sql ) {
 
-		$statement = preg_replace(
-			'/:p\d+/', ':p_', str_replace( '"', '`', trim( (string) $sql ) )
-		);
-		$params = array_values( $sql->resolve()->getParams() );
+		$statement = str_replace( '"', '`', trim( (string) $sql ) );
+		$params = $sql->resolve()->getParams();
 
 		if ( strtoupper( substr( $statement, 0, 6 ) ) !== 'SELECT' ) $this->needReset = true;
 

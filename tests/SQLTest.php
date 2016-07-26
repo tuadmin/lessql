@@ -21,8 +21,8 @@ class SQLTest extends BaseTest {
 		) );
 
 		$this->assertEquals(
-			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3') :p_",
-			str_replace( '"', '`', preg_replace( '/:p\d+/', ':p_', (string) $s ) )
+			"SELECT * FROM `post`,`a`, `b` WHERE (`foo` = 'bar') AND `x` IS NULL OR foo=:bar OR x in ('1', '2', '3') :lol",
+			str_replace( '"', '`', (string) $s )
 		);
 
 		$this->assertEquals(

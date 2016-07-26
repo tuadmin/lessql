@@ -30,7 +30,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function bind( $params, $value = null ) {
 		if ( !is_array( $params ) ) {
-			return $this->bind( array( $params => $value ) );
+			$clone = clone $this;
+			$clone->params[ $params ] = $value;
+			return $clone;
 		}
 		$clone = clone $this;
 		$clone->params = array_merge( $clone->params, $params );
@@ -357,8 +359,6 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		$count = count( $tokens );
 		$q = 0;
 
-		static $offset = 0;
-
 		for ( $i = 0; $i < $count; ++$i ) {
 
 			list( $type, $string ) = $tokens[ $i ];
@@ -368,18 +368,16 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 			switch ( $type ) {
 			case self::TOKEN_QUESTION_MARK:
 				if ( array_key_exists( $q, $this->params ) ) {
-					$params[ 'p' . $offset ] = $this->params[ $q ];
-					$r = ':p' . $offset;
-					++$offset;
+					$params[] = $this->params[ $q ];
+				} else {
+					$params[] = null;
 				}
 				++$q;
 				break;
 
 			case self::TOKEN_COLON_MARKER:
 				if ( array_key_exists( $key, $this->params ) ) {
-					$params[ 'p' . $offset ] = $this->params[ $key ];
-					$r = ':p' . $offset;
-					++$offset;
+					$params[ $key ] = $this->params[ $key ];
 				}
 				break;
 
@@ -405,13 +403,24 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				break;
 			}
 
+			// handle fragment insertion
 			if ( $r instanceof SQL ) {
 				if ( !$this->table && $r->getTable() ) {
 					$this->table = $r->getTable();
 				}
 
 				$r = $r->resolve();
-				$params = array_merge( $r->getParams(), $params );
+
+				// merge fragment parameters
+				// numbered params are appended
+				// named params are merged only if the param does not exist yet
+				foreach ( $r->getParams() as $key => $value ) {
+					if ( is_int( $key ) ) {
+						$params[] = $value;
+					} else if ( !array_key_exists( $key, $this->params ) ) {
+						$params[ $key ] = $value;
+					}
+				}
 			}
 
 			$resolved .= $r;

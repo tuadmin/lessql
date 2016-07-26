@@ -71,10 +71,10 @@ class FindTest extends BaseTest {
 			"SELECT * FROM `dummy` WHERE `test` != '31'",
 			"SELECT * FROM `dummy` WHERE `test` IN ( '1', '2', '3' )",
 			"SELECT * FROM `dummy` WHERE test = 31",
-			"SELECT * FROM `dummy` WHERE test = :p_",
-			"SELECT * FROM `dummy` WHERE test = :p_",
-			"SELECT * FROM `dummy` WHERE test = :p_",
-			"SELECT * FROM `dummy` WHERE (test < :p_) AND test > :p_"
+			"SELECT * FROM `dummy` WHERE test = ?",
+			"SELECT * FROM `dummy` WHERE test = ?",
+			"SELECT * FROM `dummy` WHERE test = :param",
+			"SELECT * FROM `dummy` WHERE (test < :a) AND test > :b"
 		), $this->statements );
 
 		$this->assertEquals( array(
@@ -86,8 +86,8 @@ class FindTest extends BaseTest {
 			array(),
 			array( 31 ),
 			array( 32 ),
-			array( 31 ),
-			array( 0, 31 )
+			array( 'param' => 31 ),
+			array( 'a' => 31, 'b' => 0 )
 		), $this->params );
 
 	}
