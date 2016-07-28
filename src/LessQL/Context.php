@@ -580,6 +580,23 @@ class Context extends EventEmitter {
 		return $this->connection->runTransaction( $t, $this );
 	}
 
+	/**
+	 * Query last insert id.
+	 *
+	 * For PostgreSQL, tries to infer the sequence name from the last statement
+	 *
+	 * @param string|null $sequence
+	 * @return mixed|null
+	 */
+	function lastInsertId( $sequence = null ) {
+		if ( !$sequence && $this->lastStatement ) {
+			$sequence = $this->getStructure()
+				->getSequence( $this->lastStatement->getTable() );
+		}
+
+		return $this->getPdo()->lastInsertId( $sequence );
+	}
+
 	// Factories
 
 	/**
@@ -729,19 +746,6 @@ class Context extends EventEmitter {
 			throw $ex;
 		}
 
-	}
-
-	/**
-	 * @param string|null $sequence
-	 * @return mixed|null
-	 */
-	function lastInsertId( $sequence = null ) {
-		if ( !$sequence && $this->lastStatement ) {
-			$sequence = $this->getStructure()
-				->getSequence( $this->lastStatement->getTable() );
-		}
-
-		return $this->getPdo()->lastInsertId( $sequence );
 	}
 
 	/**

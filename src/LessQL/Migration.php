@@ -47,7 +47,7 @@ class Migration implements \JsonSerializable {
 		try {
 			$this->context->runTransaction( function () use ( $self, $id, $action, $params ) {
 				if ( is_string( $action ) ) {
-					$this->context->createSQL( $action )->exec( $params );
+					$self->context->createSQL( $action )->exec( $params );
 				} else {
 					$action( $self, $params );
 				}
