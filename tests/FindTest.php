@@ -220,8 +220,11 @@ class FindTest extends BaseTest {
 		$db = $this->db();
 
 		$ids = $db->user()->select( 'id' );
+		foreach ( $ids as $row ) {
+			$row[ 'id' ] = intval( $row[ 'id' ] );
+		}
 		$json = json_encode( $ids );
-		$expected = '[{"id":"1"},{"id":"2"},{"id":"3"}]';
+		$expected = '[{"id":1},{"id":2},{"id":3}]';
 		$this->assertEquals( $expected, $json );
 
 	}

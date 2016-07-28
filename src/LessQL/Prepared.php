@@ -31,7 +31,7 @@ class Prepared implements \IteratorAggregate, \Countable, \JsonSerializable {
 			$context->emit( 'exec', $this->statement );
 			$this->pdoStatement->execute( $params );
 			$sequence = $context->getStructure()->getSequence( $this->statement->getTable() );
-			$insertId = $context->getPdo()->lastInsertId( $sequence );
+			$insertId = $context->lastInsertId( $sequence );
 			return $context->createResult(
 				$this->statement,
 				$this->pdoStatement,

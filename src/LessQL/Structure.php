@@ -200,12 +200,14 @@ class Structure {
 	/**
 	 * Get primary sequence name of table (used in INSERT by Postgres)
 	 *
-	 * Conventions is "$tableRewritten_$primary_seq"
+	 * Convention is "$tableRewritten_$primary_seq"
 	 *
 	 * @param string $table
 	 * @return null|string
 	 */
 	function getSequence( $table ) {
+
+		if ( !$table ) return null;
 
 		if ( isset( $this->sequences[ $table ] ) ) {
 			return $this->sequences[ $table ];

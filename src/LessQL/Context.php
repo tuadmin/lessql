@@ -727,7 +727,7 @@ class Context extends EventEmitter {
 			$pdoStatement = $this->getPdo()->prepare( $string );
 			$pdoStatement->execute( $resolved->getParams() );
 			$sequence = $this->getStructure()->getSequence( $sql->getTable() );
-			$insertId = $this->getPdo()->lastInsertId( $sequence );
+			$insertId = $this->lastInsertId( $sequence );
 		} catch ( \Exception $ex ) {
 			$this->emit( 'error', $sql );
 			throw $ex;
@@ -738,6 +738,21 @@ class Context extends EventEmitter {
 
 		return $result;
 
+	}
+
+	/**
+	 * @param string|null $sequence
+	 * @return mixed|null
+	 */
+	function lastInsertId( $sequence ) {
+		if ( !$sequence ) return null;
+
+		try {
+			return $this->getPdo()->lastInsertId( $sequence );
+		} catch ( \PDOException $ex ) {
+			$this->emit( 'debug', $ex );
+			return null;
+		}
 	}
 
 	/**

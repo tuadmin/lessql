@@ -10,16 +10,18 @@ class MigrationTest extends BaseTest {
 		$migration->apply( "drop", "DROP TABLE IF EXISTS lol" );
 		$migration->apply( "create", "CREATE TABLE lol (id INT)" );
 
-		$this->assertEquals( count( $migration->log() ), 2 );
-		$this->assertEquals( $migration->log()[ 0 ][ 'message' ], 'applied' );
-		$this->assertEquals( $migration->log()[ 1 ][ 'message' ], 'applied' );
+		$log = $migration->log();
+		$this->assertEquals( count( $log ), 2 );
+		$this->assertEquals( $log[ 0 ][ 'message' ], 'applied' );
+		$this->assertEquals( $log[ 1 ][ 'message' ], 'applied' );
 
 		$migration->apply( "drop", "whatever" );
 		$migration->apply( "create", "never" );
 
-		$this->assertEquals( count( $migration->log() ), 4 );
-		$this->assertEquals( $migration->log()[ 2 ][ 'message' ], 'skipped' );
-		$this->assertEquals( $migration->log()[ 3 ][ 'message' ], 'skipped' );
+		$log = $migration->log();
+		$this->assertEquals( count( $log ), 4 );
+		$this->assertEquals( $log[ 2 ][ 'message' ], 'skipped' );
+		$this->assertEquals( $log[ 3 ][ 'message' ], 'skipped' );
 
 	}
 
