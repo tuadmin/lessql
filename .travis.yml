@@ -17,8 +17,8 @@ env:
 before_script:
   - composer self-update
   - composer install --prefer-dist
-  - mysql -e 'create database if not exists lessql;'
-  - psql -c 'create database if not exists lessql;' -U postgres
+  - mysql -e 'create database lessql;'
+  - psql -c 'create database lessql;' -U postgres
 
 script:
   - vendor/bin/phpunit --bootstrap=tests/$BOOTSTRAP.php --coverage-clover=build/logs/clover.xml tests
