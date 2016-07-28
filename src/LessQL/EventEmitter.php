@@ -28,7 +28,7 @@ class EventEmitter {
 	 * @param string $event
 	 * @param callable $listener
 	 */
-	function on( $event, callable $listener ) {
+	function on( $event, $listener ) {
 		if ( @$this->listeners[ $event ] ) {
 			$this->listeners[ $event ][] = $this->listeners;
 			return $this;
