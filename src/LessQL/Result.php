@@ -19,8 +19,17 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 		if ( is_array( $source ) ) {
 			$this->rows = $source;
 		} else {
-			$this->rows = $source->fetchAll( \PDO::FETCH_ASSOC );
-			$this->affected = $source->rowCount();
+			try {
+				$this->rows = $source->fetchAll( \PDO::FETCH_ASSOC );
+			} catch ( \Exception $ex ) {
+				// ignore
+			}
+
+			try {
+				$this->affected = $source->rowCount();
+			} catch ( \Exception $ex ) {
+				// ignore
+			}
 		}
 
 		$self = $this;

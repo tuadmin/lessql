@@ -13,7 +13,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 		// database
 		self::$pdo = $GLOBALS[ 'PDO' ];
-		self::$pdo->setAttribute( \PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION );
+		\LessQL\Connection::get( self::$pdo )->init();
 		self::schema();
 		self::reset();
 
@@ -173,11 +173,12 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 
 	// instance
 
-	protected $needReset = false;
+	protected $needReset;
 
 	function setUp() {
 		$this->statements = array();
 		$this->params = array();
+		$this->needReset = false;
 	}
 
 	function db( $options = array() ) {

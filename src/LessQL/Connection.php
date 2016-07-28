@@ -53,17 +53,17 @@ class Connection {
 
 		if ( $this->init ) return $this->pdo;
 
-		// disable backslash escapes
+		// mysql
 		try {
-			$this->pdo->exec( "SET sql_mode='NO_BACKSLASH_ESCAPES'" );
-		} catch ( \PDOException $ex ) {
+			$this->pdo->exec( "SET SESSION sql_mode='ANSI_QUOTES'" );
+		} catch ( \Exception $ex ) {
 			if ( $emitter ) $emitter->emit( 'init', $ex );
 		}
 
-		// enable standard strings (double quotes are used for identifiers)
+		// postgres
 		try {
 			$this->pdo->exec( "SET standard_conforming_strings=on" );
-		} catch ( \PDOException $ex ) {
+		} catch ( \Exception $ex ) {
 			if ( $emitter ) $emitter->emit( 'init', $ex );
 		}
 

@@ -253,6 +253,7 @@ class RowTest extends BaseTest {
 
 	function testReadmeExample() {
 
+		self::reset();
 		$db = $this->db();
 
 		$category = $db->category( 21 );
