@@ -142,9 +142,7 @@ class FindTest extends BaseTest {
 
 			$author = $post->author()->first();
 			$editor = $post->editor()->first();
-			$editor2 = $post->editor( 'id > ?', array( 0 ) );
-			var_dump( (string) $editor2 );
-			$editor2->exec();
+			$editor2 = $post->editor( 'id > ?', array( 0 ) )->first();
 
 			if ( $author ) $this->assertTrue( $author->exists() );
 			if ( $editor ) $this->assertTrue( $editor->exists() );
@@ -160,7 +158,7 @@ class FindTest extends BaseTest {
 				$t[ 'categories' ][] = $category->title;
 			}
 
-			$post->categorizationList()->category( 'id > ?', array( 1 ) )->exec();
+			$post->categorizationList()->category( 'id > ?', array( 0 ) )->exec();
 
 			$posts[] = $t;
 
@@ -170,10 +168,10 @@ class FindTest extends BaseTest {
 			"SELECT * FROM `post` WHERE 1=1 ORDER BY `date_published` DESC",
 			"SELECT * FROM `user` WHERE `id` IN ( '2', '1' )",
 			"SELECT * FROM `user` WHERE `id` IN ( '3', '2' )",
-			"SELECT * FROM `user` WHERE id > ? AND `id` IN ( '3', '2' )",
+			"SELECT * FROM `user` WHERE (id > ?) AND `id` IN ( '3', '2' )",
 			"SELECT * FROM `categorization` WHERE `post_id` IN ( '13', '11', '12' )",
 			"SELECT * FROM `category` WHERE `id` IN ( '22', '23', '21' )",
-			"SELECT * FROM `category` WHERE id > ? AND `id` IN ( '22', '23', '21' )"
+			"SELECT * FROM `category` WHERE (id > ?) AND `id` IN ( '22', '23', '21' )"
 		), $this->statements );
 
 		$this->assertEquals( array(
@@ -228,13 +226,13 @@ class FindTest extends BaseTest {
 
 	}
 
-	/**
-	 * @expectedException \PDOException
-	 * expectedExceptionMessage "post_id" does not exist in "user" result
-	 */
 	function testBadReference() {
 		$db = $this->db();
 		$db->user()->post()->exec();
+		$this->assertEquals( array(
+			"SELECT * FROM `user` WHERE 1=1",
+			"SELECT * FROM `post` WHERE 0=1"
+		), $this->statements );
 	}
 
 }

@@ -15,7 +15,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 *
 	 * @param Context $context
 	 */
-	function __construct( $context, $sql, $params = array() ) {
+	function __construct( $context, $sql, array $params = array() ) {
 		$this->context = $context;
 		$this->sql = $sql;
 		$this->params = $params;
@@ -56,8 +56,55 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function exec( $params = null ) {
 		if ( $params !== null ) return $this->bind( $params )->exec();
-		if ( $this->eager ) return $this->eager->exec();
-		return $this->context->exec( $this, $params );
+		if ( $this->referencedBy || $this->referencing ) return $this->execRef();
+		return $this->getContext()->exec( $this );
+	}
+
+	/**
+	 * Execute statement using referencedBy/referencing.
+	 * Eagerly loaded. Internal
+	 *
+	 * @return Result
+	 */
+	protected function execRef() {
+
+		$other = $this->referencedBy ?: $this->referencing;
+		$context = $this->getContext();
+		$structure = $context->getStructure();
+		$table = $this->getTable();
+		$otherTable = $other->getTable();
+		$via = $this->via;
+
+		if ( $this->referencedBy ) {
+			$key = $structure->getPrimary( $table );
+			$otherKey = $via ?: $structure->getReference( $otherTable, $table );
+		} else {
+			$key = $via ?: $structure->getBackReference( $table, $otherTable );
+			$otherKey = $structure->getPrimary( $otherTable );
+		}
+
+		$eager = clone $this;
+		$eager->referencedBy = null;
+		$eager->referencing = null;
+		$eager->via = null;
+
+		if ( $other instanceof SQL ) $other->exec();
+
+		$eager = $eager->where(
+			$key,
+			$context->getKnownKeys( $other->getTable(), $otherKey )
+		);
+
+		$otherKeys = $other->getKeys( $otherKey );
+		$rows = array();
+		foreach ( $eager as $row ) {
+			if ( in_array( $row[ $key ], $otherKeys ) ) {
+				$rows[] = $row;
+			}
+		}
+
+		return $context->createResult( $this, $rows );
+
 	}
 
 	/**
@@ -218,7 +265,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function referencedBy( $other ) {
 		$clone = clone $this;
-		$clone->eager = $this->context->createEager( $this, $other, true );
+		$clone->referencedBy = $other;
+		$clone->referencing = null;
+		$clone->via = null;
 		return $clone;
 	}
 
@@ -231,7 +280,9 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function referencing( $other ) {
 		$clone = clone $this;
-		$clone->eager = $this->context->createEager( $this, $other );
+		$clone->referencing = $other;
+		$clone->referencedBy = null;
+		$clone->via = null;
 		return $clone;
 	}
 
@@ -243,18 +294,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function via( $key ) {
 		$clone = clone $this;
-		$clone->eager = $this->eager->via( $key );
-		return $clone;
-	}
-
-	/**
-	 * Return new SQL not filtered by references
-	 *
-	 * @return SQL
-	 */
-	function late() {
-		$clone = clone $this;
-		$clone->eager = null;
+		$clone->via = $key;
 		return $clone;
 	}
 
@@ -339,6 +379,16 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function jsonSerialize() {
 		return $this->exec()->jsonSerialize();
+	}
+
+	/**
+	 * Internal
+	 *
+	 * @param string $key
+	 * @return array
+	 */
+	function getKeys( $key ) {
+		return $this->exec()->getKeys( $key );
 	}
 
 	//
@@ -533,8 +583,14 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/** @var array */
 	protected $params;
 
-	/** @var Eager|null */
-	protected $eager;
+	/** @var Row|Result|SQL|null */
+	protected $referencedBy;
+
+	/** @var Row|Result|SQL|null */
+	protected $referencing;
+
+	/** @var string|null */
+	protected $via;
 
 	/** @var array */
 	protected $tokens;

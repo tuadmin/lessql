@@ -87,6 +87,8 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * Internal
+	 *
 	 * @param string $key
 	 * @return array
 	 */

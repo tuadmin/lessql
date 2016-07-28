@@ -637,16 +637,6 @@ class Context extends EventEmitter {
 		return new Migration( $this, $path );
 	}
 
-	/**
-	 * Create an eager loading policy. Internal
-	 *
-	 * @param SQL $statement
-	 * @return Eager
-	 */
-	function createEager( $statement, $other, $back = false ) {
-		return new Eager( $statement, $other, $back );
-	}
-
 	//
 
 	/**
