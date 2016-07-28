@@ -4,7 +4,7 @@ namespace LessQL;
 
 /**
  * Represents the result of a SQL statement.
- * May contain rows, the number of affected rows, and an insert id.
+ * May contain rows and the number of affected rows.
  *
  * Immutable
  */
@@ -13,7 +13,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	/**
 	 * Constructor, only for internal use
 	 */
-	function __construct( $statement, $source, $insertId = null ) {
+	function __construct( $statement, $source ) {
 		$this->statement = $statement;
 
 		if ( is_array( $source ) ) {
@@ -39,7 +39,6 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 				->setClean();
 		}, $this->rows );
 		$this->count = count( $this->rows );
-		$this->insertId = $insertId;
 	}
 
 	/**
@@ -70,15 +69,6 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function affected() {
 		return $this->affected;
-	}
-
-	/**
-	 * Return inserted id
-	 *
-	 * @return int|string
-	 */
-	function getInsertId() {
-		return $this->insertId;
 	}
 
 	/**
@@ -202,8 +192,5 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/** @var int */
 	protected $affected = 0;
-
-	/** @var mixed */
-	protected $insertId;
 
 }

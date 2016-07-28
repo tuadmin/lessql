@@ -254,7 +254,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 					$result = $context->insert( $table, $this->getData() )->exec();
 
 					if ( !is_array( $primary ) && !isset( $this[ $primary ] ) ) {
-						$id = $result->getInsertId();
+						$id = $context->lastInsertId();
 						if ( isset( $id ) ) $this[ $primary ] = $id;
 					}
 

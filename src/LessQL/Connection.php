@@ -55,7 +55,7 @@ class Connection {
 
 		// mysql
 		try {
-			$this->pdo->exec( "SET SESSION sql_mode='ANSI_QUOTES'" );
+			$this->pdo->exec( "SET sql_mode=(SELECT CONCAT(@@sql_mode,',NO_BACKSLASH_ESCAPES,ANSI_QUOTES'))" );
 		} catch ( \Exception $ex ) {
 			if ( $emitter ) $emitter->emit( 'init', $ex );
 		}

@@ -595,16 +595,6 @@ class Context extends EventEmitter {
 	}
 
 	/**
-	 * Create a prepared statement from a statement
-	 *
-	 * @param string|SQL $statement
-	 * @return Prepared
-	 */
-	function createPrepared( $statement ) {
-		return new Prepared( $this( $statement ) );
-	}
-
-	/**
 	 * Create a row from given properties
 	 *
 	 * @param string $table
@@ -704,39 +694,40 @@ class Context extends EventEmitter {
 	 * @param array $params
 	 * @return Result
 	 */
-	function exec( $sql, $params = array() ) {
+	function exec( $statement, $params = array() ) {
 
-		$sql = $this( $sql, $params );
-		$resolved = $sql->resolve();
-		$string = (string) $resolved;
+		$statement = $this( $statement, $params );
 
-		// skip NOOP
-		if ( $string === self::NOOP ) {
-			return $this->createResult( $this(), array() );
-		}
-
-		// try cache
-		$key = json_encode( array( $string, $resolved->getParams() ) );
-		$result = @$this->resultCache[ $key ];
-		if ( $result ) return $result;
-
-		$this->emit( 'exec', $sql );
-
-		// execute statement via PDO
 		try {
-			$pdoStatement = $this->getPdo()->prepare( $string );
-			$pdoStatement->execute( $resolved->getParams() );
-			$sequence = $this->getStructure()->getSequence( $sql->getTable() );
-			$insertId = $this->lastInsertId( $sequence );
+			$prepared = $statement->prepare();
+			if ( (string) $prepared === Context::NOOP ) {
+				return $this->createResult( $statement, array() );
+			}
+			$pdoStatement = $prepared->getPdoStatement();
+
+			// cache lookup
+			$key = json_encode( array(
+				(string) $prepared,
+				$prepared->getParams()
+			) );
+
+			$result = @$this->resultCache[ $key ];
+			if ( $result ) return $result;
+
+			$this->emit( 'exec', $statement );
+			$this->lastStatement = $statement;
+
+			$pdoStatement->execute( $prepared->getParams() );
+
+			// store in cache
+			$result = $this->resultCache[ $key ] = $this->createResult( $statement, $pdoStatement );
+
+			return $result;
+
 		} catch ( \Exception $ex ) {
-			$this->emit( 'error', $sql );
+			$this->emit( 'error', $statement );
 			throw $ex;
 		}
-
-		// write to cache
-		$result = $this->resultCache[ $key ] = $this->createResult( $sql, $pdoStatement, $insertId );
-
-		return $result;
 
 	}
 
@@ -744,15 +735,13 @@ class Context extends EventEmitter {
 	 * @param string|null $sequence
 	 * @return mixed|null
 	 */
-	function lastInsertId( $sequence ) {
-		if ( !$sequence ) return null;
-
-		try {
-			return $this->getPdo()->lastInsertId( $sequence );
-		} catch ( \PDOException $ex ) {
-			$this->emit( 'debug', $ex );
-			return null;
+	function lastInsertId( $sequence = null ) {
+		if ( !$sequence && $this->lastStatement ) {
+			$sequence = $this->getStructure()
+				->getSequence( $this->lastStatement->getTable() );
 		}
+
+		return $this->getPdo()->lastInsertId( $sequence );
 	}
 
 	/**
@@ -803,6 +792,9 @@ class Context extends EventEmitter {
 
 	/** @var array */
 	protected $resultCache = array();
+
+	/** @var SQL */
+	protected $lastStatement;
 
 	/** @var string */
 	const NOOP = 'SELECT 1 WHERE 1=0';

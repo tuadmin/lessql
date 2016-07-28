@@ -30,22 +30,27 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	function bind( $params, $value = null ) {
 		if ( !is_array( $params ) ) {
-			$clone = clone $this;
-			$clone->params[ $params ] = $value;
-			return $clone;
+			return $this->bind( array( $params => $value ) );
 		}
 		$clone = clone $this;
-		$clone->params = array_merge( $clone->params, $params );
+		foreach ( $params as $key => $value ) {
+			$clone->params[ $key ] = $value;
+		}
 		return $clone;
 	}
 
 	/**
+	 * Return resolved SQL containing prepared PDO statement
+	 *
 	 * @param array $params
-	 * @return Prepared
+	 * @return SQL
 	 */
-	function prepare( $params = null ) {
-		if ( $params !== null ) return $this->bind( $params )->prepare();
-		return $this->context->createPrepared( $this );
+	function prepare() {
+		if ( $this->pdoStatement ) return $this;
+		$prepared = $this->resolve();
+		$prepared->pdoStatement = $this->getContext()->getPdo()
+			->prepare( (string) $prepared );
+		return $prepared;
 	}
 
 	/**
@@ -391,6 +396,15 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		return $this->exec()->getKeys( $key );
 	}
 
+	/**
+	 * Return PDO statement, if any. Internal
+	 *
+	 * @return \PDOStatement
+	 */
+	function getPdoStatement() {
+		return $this->pdoStatement;
+	}
+
 	//
 
 	/**
@@ -551,8 +565,10 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 *
 	 */
 	function __clone() {
-		$this->resolved = null;
-		$this->table = null;
+		if ( $this->resolved !== $this ) {
+			$this->resolved = null;
+			$this->table = null;
+		}
 	}
 
 	//
@@ -600,5 +616,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/** @var string */
 	protected $table;
+
+	/** @var \PDOStatement */
+	protected $pdoStatement;
 
 }
