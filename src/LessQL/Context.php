@@ -601,7 +601,7 @@ class Context extends EventEmitter {
 	 * @param array $params
 	 * @return SQL
 	 */
-	function createSQL( $sql, $params = array() ) {
+	function createSQL( $sql = '', $params = array() ) {
 		if ( $sql instanceof SQL ) return $sql->bind( $params );
 		return new SQL( $this, $sql, $params );
 	}
@@ -625,8 +625,8 @@ class Context extends EventEmitter {
 	 * @param string $insertId
 	 * @return Result
 	 */
-	function createResult( $statement, $source, $insertId = null ) {
-		return new Result( $statement, $source, $insertId );
+	function createResult( $statement, $source ) {
+		return new Result( $statement, $source );
 	}
 
 	/**
@@ -635,8 +635,8 @@ class Context extends EventEmitter {
 	 * @param string $path
 	 * @return Migration
 	 */
-	function createMigration( $path ) {
-		return new Migration( $this, $path );
+	function createMigration( $table = 'migration' ) {
+		return new Migration( $this, $table );
 	}
 
 	//
@@ -724,7 +724,7 @@ class Context extends EventEmitter {
 
 			$pdoStatement->execute( $prepared->getParams() );
 
-			// cache store
+			// cache the result
 			$result = $this->resultCache[ $key ] = $this->createResult( $statement, $pdoStatement );
 
 			// track last executed statement for lastInsertId

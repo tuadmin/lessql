@@ -4,24 +4,53 @@ class MigrationTest extends BaseTest {
 
 	function testBasic() {
 
-		@unlink( 'tests/migration.php' );
+		$db = $this->db();
 
-		$migration = $this->db()->createMigration( 'tests/migration.php' );
-		$migration->apply( "drop", "DROP TABLE IF EXISTS lol" );
-		$migration->apply( "create", "CREATE TABLE lol (id INT)" );
+		try {
+			$db( 'DROP TABLE migration' )->exec();
+		} catch ( \Exception $ex ) {
+			// ignore
+		}
+		try {
+			$db( 'DROP TABLE lol' )->exec();
+		} catch ( \Exception $ex ) {
+			// ignore
+		}
+		try {
+			$db( 'DROP TABLE foo' )->exec();
+		} catch ( \Exception $ex ) {
+			// ignore
+		}
+
+
+		$migration = $db->createMigration();
+		$migration->apply( 'create', 'CREATE TABLE lol (id INT)' );
+		$migration->apply( 'drop', function ( $context ) {
+			$context( 'DROP TABLE lol' )->exec();
+		} );
 
 		$log = $migration->log();
-		$this->assertEquals( count( $log ), 2 );
+		$this->assertEquals( 2, count( $log ) );
 		$this->assertEquals( $log[ 0 ][ 'message' ], 'applied' );
 		$this->assertEquals( $log[ 1 ][ 'message' ], 'applied' );
 
-		$migration->apply( "drop", "whatever" );
-		$migration->apply( "create", "never" );
+		$migration->apply( 'drop', 'whatever' );
+		$migration->apply( 'x', 'CREATE TABLE foo (id INT)' );
+		$migration->apply( 'create', 'never' );
+		$migration->apply( 'y', 'SELECT * FROM foo' );
+		$migration->apply( 'z', 'INSERT INTO lol (1)' );
+		$migration->apply( 'zz', 'SELECT * FROM foo' );
 
 		$log = $migration->log();
-		$this->assertEquals( count( $log ), 4 );
-		$this->assertEquals( $log[ 2 ][ 'message' ], 'skipped' );
-		$this->assertEquals( $log[ 3 ][ 'message' ], 'skipped' );
+		$this->assertEquals( 8, count( $log ) );
+		$this->assertEquals( 'skipped', $log[ 2 ][ 'message' ] );
+		$this->assertEquals( 'applied', $log[ 3 ][ 'message' ] );
+		$this->assertEquals( 'skipped', $log[ 4 ][ 'message' ] );
+		$this->assertEquals( 'applied', $log[ 5 ][ 'message' ] );
+		$this->assertEquals( 'failed', $log[ 6 ][ 'message' ] );
+		$this->assertEquals( 'skipped', $log[ 7 ][ 'message' ] );
+
+		$migration->jsonSerialize();
 
 	}
 

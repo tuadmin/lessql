@@ -11,52 +11,61 @@ class Migration implements \JsonSerializable {
 	 * Constructor
 	 *
 	 * @param Context $context
-	 * @param string $path Path to history file. Must be writable, otherwise throws
+	 * @param string $table Migration table
 	 */
-	function __construct( $context, $path ) {
+	function __construct( $context, $table = 'migration' ) {
 		$this->context = $context;
-		$this->path = $path;
-		$this->history = is_file( $path ) ? require $this->path : array();
-		// ensure history is writable
-		$this->save();
+		$this->table = $table;
+
+		try {
+			$context( 'CREATE TABLE ?? ( id TEXT, applied_at TEXT )' )
+				->exec( array( $context->table( $table ) ) );
+		} catch ( \Exception $ex ) {
+			// ignore
+		}
 	}
 
 	/**
-	 * Destructor. Always saves history.
-	 */
-	function __destruct() {
-		$this->save();
-	}
-
-	/**
-	 * Execute a statement if it has not been run by this migration before
+	 * Execute an action if it has not been run by this migration before
 	 *
-	 * @param string $statement The statement to run
+	 * @param string|callable $action The action or statement to run
+	 * @param array $params
 	 * @return $this
 	 */
 	function apply( $id, $action, $params = null ) {
 
-		foreach ( $this->history as $item ) {
-			if ( $id === @$item[ 'id' ] ) {
-				return $this->log( 'skipped', $id );
-			}
-		}
+		if ( $this->break ) return $this->log( 'skipped', $id );
 
 		$self = $this;
+		$table = $this->table;
 
 		try {
-			$this->context->runTransaction( function ( $context ) use ( $self, $id, $action, $params ) {
-				if ( is_string( $action ) ) {
-					$context->createSQL( $action )->exec( $params );
-				} else {
-					$action( $self, $params );
+
+			$this->context->runTransaction( function ( $context )
+					use ( $self, $table, $id, $action, $params ) {
+
+				if ( $context->clear()->query( $table, $id ) ) {
+					return $self->log( 'skipped', $id );
 				}
-				$self->history( array( 'id' => $id ) )->log( 'applied', $id );
+
+				if ( is_string( $action ) ) {
+					$context( $action )->exec( $params );
+				} else {
+					call_user_func( $action, $context, $params );
+				}
+
+				$context->clear()
+					->insert( $table, array( 'id' => $id, 'applied_at' => microtime() ) )
+					->exec();
+				return $self->log( 'applied', $id );
+
 			} );
+
 		} catch ( \Exception $ex ) {
-			throw $ex;
+
 			$this->break = true;
 			$this->log( 'failed', $id, $ex );
+
 		}
 
 		return $this;
@@ -84,27 +93,18 @@ class Migration implements \JsonSerializable {
 	}
 
 	/**
-	 * Get or add item to migration history
 	 *
-	 * @return array
 	 */
-	function history( $data = null ) {
-		if ( $data === null ) return $this->history;
-
-		$data[ 'time' ] = time();
-		$this->history[] = $data;
-
-		return $this->save();
+	function history() {
+		return $this->context->query( $this->table )
+			->orderBy( 'applied_at' )->exec();
 	}
 
 	/**
-	 * Save migration history
 	 *
-	 * @return $this
 	 */
-	function save() {
-		file_put_contents( $this->path, '<?php return ' . var_export( $this->history, true ) . ';' );
-		return $this;
+	function ok() {
+		return !$this->break;
 	}
 
 	//
@@ -116,9 +116,12 @@ class Migration implements \JsonSerializable {
 	 */
 	function jsonSerialize() {
 		return array(
-			'history' => $this->history,
-			'log' => $this->log,
-			'ok' => !$this->break
+			'history' => $this->history()->jsonSerialize(),
+			'log' => array_map( function ( $item ) {
+				if ( @$item[ 'ex' ] ) $item[ 'ex' ] = (string) $item[ 'ex' ];
+				return $item;
+			}, $this->log() ),
+			'ok' => $this->ok()
 		);
 	}
 
@@ -126,10 +129,7 @@ class Migration implements \JsonSerializable {
 	protected $context;
 
 	/** @var string */
-	protected $path;
-
-	/** @var array */
-	protected $history;
+	protected $table;
 
 	/** @var array */
 	protected $log = array();
