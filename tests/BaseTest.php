@@ -219,7 +219,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	}
 
 	function onError( $sql ) {
-		var_dump( (string) $sql, $sql->getParams() );
+		var_dump( (string) $sql );
 	}
 
 	function tearDown() {

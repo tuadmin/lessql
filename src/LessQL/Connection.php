@@ -92,19 +92,33 @@ class Connection {
 			throw new Exception( 'Transaction must be callable' );
 		}
 
-		if ( $this->activeTransaction ) return $t( $context );
+		if ( $this->activeTransaction ) {
+			try {
+				return call_user_func( $t, $context );
+			} catch ( \Exception $ex ) {
+				$this->nestedException = $this->nestedException ?: $ex;
+				throw $ex;
+			}
+		}
 
 		$this->init();
 		$this->pdo->beginTransaction();
 		$this->activeTransaction = true;
 
 		try {
-			$return = $t( $context );
+			$return = call_user_func( $t, $context );
+			if ( $this->nestedException ) {
+				throw new Exception(
+					'Must roll back, nested transaction failed: ' .
+			 		$this->nestedException->getMessage()
+				);
+			}
 			$this->pdo->commit();
 			$this->activeTransaction = false;
 			return $return;
 		} catch ( \Exception $ex ) {
 			$this->activeTransaction = false;
+			$this->nestedException = null;
 			$this->pdo->rollBack();
 			throw $ex;
 		}
@@ -119,5 +133,8 @@ class Connection {
 
 	/** @var bool */
 	protected $activeTransaction = false;
+
+	/** @var \Exception|null */
+	protected $nestedException = null;
 
 }

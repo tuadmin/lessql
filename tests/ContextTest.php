@@ -44,23 +44,18 @@ class ContextTest extends BaseTest {
 
 	function testQuoteIdentifier() {
 
-		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
+		$db = $this->db();
 
-		$a = array(
+		$a = array_map( array( $this, 'str' ), array(
 			$db->quoteIdentifier( 'foo' ),
 			$db->quoteIdentifier( 'foo.bar' ),
-			$db->quoteIdentifier( 'foo`.bar' ),
-		);
-
-		$db = $this->db( array( 'identifierDelimiter' => '"' ) );
-
-		$a[] = $db->quoteIdentifier( 'foo.bar' );
+			$db->quoteIdentifier( 'foo".bar' ),
+		) );
 
 		$ex = array(
-			"`foo`",
-			"`foo`.`bar`",
-			"`foo```.`bar`",
+			'"foo"',
 			'"foo"."bar"',
+			'"foo"""."bar"'
 		);
 
 		$this->assertEquals( $ex, $a );
@@ -81,9 +76,9 @@ class ContextTest extends BaseTest {
 
 	function testIs() {
 
-		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
+		$db = $this->db();
 
-		$a = array(
+		$a = array_map( array( $this, 'str' ), array(
 			$db->is( 'foo', null ),
 			$db->is( 'foo', 0 ),
 			$db->is( 'foo', 'bar' ),
@@ -94,19 +89,19 @@ class ContextTest extends BaseTest {
 			$db->is( 'foo', array( 'x' ) ),
 			$db->is( 'foo', array() ),
 			$db->is( 'foo', array( null ) ),
-		);
+		) );
 
 		$ex = array(
-			"`foo` IS NULL",
-			"`foo` = '0'",
-			"`foo` = 'bar'",
-			"`foo` = '2015-01-01 01:00:00'",
-			"`foo` = BAR",
-			"`foo` IN ( 'x', 'y' )",
-			"`foo` IN ( 'x' ) OR `foo` IS NULL",
-			"`foo` = 'x'",
-			"0=1",
-			"`foo` IS NULL",
+			'"foo" IS NULL',
+			'"foo" = \'0\'',
+			'"foo" = \'bar\'',
+			'"foo" = \'2015-01-01 01:00:00\'',
+			'"foo" = BAR',
+			'"foo" IN ( \'x\', \'y\' )',
+			'"foo" IN ( \'x\' ) OR "foo" IS NULL',
+			'"foo" = \'x\'',
+			'0=1',
+			'"foo" IS NULL',
 		);
 
 		$this->assertEquals( $ex, $a );
@@ -115,7 +110,7 @@ class ContextTest extends BaseTest {
 
 	function testIsNot() {
 
-		$db = $this->db( array( 'identifierDelimiter' => '`' ) );
+		$db = $this->db();
 
 		$a = array(
 			$db->isNot( 'foo', null ),
@@ -131,16 +126,16 @@ class ContextTest extends BaseTest {
 		);
 
 		$ex = array(
-			"`foo` IS NOT NULL",
-			"`foo` != '0'",
-			"`foo` != 'bar'",
-			"`foo` != '2015-01-01 01:00:00'",
-			"`foo` != BAR",
-			"`foo` NOT IN ( 'x', 'y' )",
-			"`foo` NOT IN ( 'x' ) AND `foo` IS NOT NULL",
-			"`foo` != 'x'",
-			"1=1",
-			"`foo` IS NOT NULL",
+			'"foo" IS NOT NULL',
+			'"foo" != \'0\'',
+			'"foo" != \'bar\'',
+			'"foo" != \'2015-01-01 01:00:00\'',
+			'"foo" != BAR',
+			'"foo" NOT IN ( \'x\', \'y\' )',
+			'"foo" NOT IN ( \'x\' ) AND "foo" IS NOT NULL',
+			'"foo" != \'x\'',
+			'1=1',
+			'"foo" IS NOT NULL',
 		);
 
 		$this->assertEquals( $ex, $a );

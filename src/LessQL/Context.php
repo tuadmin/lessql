@@ -21,18 +21,15 @@ class Context extends EventEmitter {
 	function __construct( $pdo, array $options = array() ) {
 
 		$this->connection = Connection::get( $pdo );
-		$this->structure = @$options[ 'structure' ] ?
-			$options[ 'structure' ] : new Structure();
-		$this->identifierDelimiter = @$options[ 'identifierDelimiter' ] ?
-			$options[ 'identifierDelimiter' ] : '"';
+		$this->structure = @$options[ 'structure' ] ?: new Structure();
 
 	}
 
 	/**
-	 * Create an SQL fragment from a string
+	 * Create an SQL fragment from a string and optional params
 	 *
 	 * Examples:
-	 * $db( "SELECT * FROM &post" )
+	 * $db( "SELECT * FROM &post WHERE id = ?", array( 1 ) )
 	 *
 	 * @param string|SQL $sql
 	 * @param array $params
@@ -43,7 +40,7 @@ class Context extends EventEmitter {
 	}
 
 	/**
-	 * Returns a query for table $name.
+	 * Returns a basic SELECT query for table $name.
 	 * If $id is given, return the row with that id.
 	 *
 	 * Examples:
@@ -66,7 +63,7 @@ class Context extends EventEmitter {
 	}
 
 	/**
-	 * Returns basic SELECT query for table $name.
+	 * Returns a basic SELECT query for table $name.
 	 * If $id is given, return the row with that id.
 	 *
 	 * @param $name
@@ -75,7 +72,7 @@ class Context extends EventEmitter {
 	 */
 	function query( $table, $id = null ) {
 
-		$select = $this( "SELECT ::select FROM ::table WHERE ::where ::orderBy ::limit", array(
+		$select = $this( 'SELECT ::select FROM ::table WHERE ::where ::orderBy ::limit', array(
 			'select' => $this( '*' ),
 			'table' => $this->table( $table ),
 			'where' => $this->where(),
@@ -113,8 +110,8 @@ class Context extends EventEmitter {
 	/**
 	 * Build single batch statement to insert multiple rows
 	 *
-	 * Create a single statement with multiple value lists
-	 * Supports SQL fragment parameters, but not supported by all drivers
+	 * Create a single statement with multiple value lists.
+	 * Supports SQL fragment parameters, but not supported by all drivers.
 	 *
 	 * @param string $table
 	 * @param array $rows
@@ -125,7 +122,7 @@ class Context extends EventEmitter {
 		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return $this( self::NOOP );
 
-		return $this( "INSERT INTO ::table ( ::columns ) VALUES ::values", array(
+		return $this( 'INSERT INTO ::table ( ::columns ) VALUES ::values', array(
 			'table' => $this->table( $table ),
 			'columns' => $this->quoteIdentifier( $columns ),
 			'values' => $this->getValueLists( $rows, $columns )
@@ -150,10 +147,10 @@ class Context extends EventEmitter {
 		$columns = $this->getColumns( $rows );
 		if ( empty( $columns ) ) return $result;
 
-		$prepared = $this( "INSERT INTO ::table ( ::columns ) VALUES ::values", array(
+		$prepared = $this( 'INSERT INTO ::table ( ::columns ) VALUES ::values', array(
 			'table' => $this->table( $table ),
 			'columns' => $this->quoteIdentifier( $columns ),
-			'values' => $this( "( ?" . str_repeat( ", ?", count( $columns ) - 1 ) . " )" )
+			'values' => $this( '( ?' . str_repeat( ', ?', count( $columns ) - 1 ) . ' )' )
 		) )->prepare();
 
 		foreach ( $rows as $row ) {
@@ -229,7 +226,7 @@ class Context extends EventEmitter {
 
 		if ( empty( $data ) ) return $this( self::NOOP );
 
-		return $this( "UPDATE ::table SET ::set WHERE ::where ::limit", array(
+		return $this( 'UPDATE ::table SET ::set WHERE ::where ::limit', array(
 			'table' => $this->table( $table ),
 			'set' => $this->assign( $data ),
 			'where' => $this->where( $where, $params ),
@@ -250,7 +247,7 @@ class Context extends EventEmitter {
 	 */
 	function delete( $table, $where = array(), $params = array() ) {
 
-		return $this( "DELETE FROM ::table WHERE ::where ::limit", array(
+		return $this( 'DELETE FROM ::table WHERE ::where ::limit', array(
 			'table' => $this->table( $table ),
 			'where' => $this->where( $where, $params ),
 			'limit' => $this()
@@ -321,7 +318,8 @@ class Context extends EventEmitter {
 		$condition = $this->isNot( $key, $value );
 
 		if ( $before && (string) $before !== '1=1' ) {
-			return $this( '(' . $before . ') AND ' . $condition );
+			return $this( '(' . $before . ') AND ::__condition', $before->resolve()->getParams() )
+				->bind( '__condition', $condition );
 		}
 
 		return $condition;
@@ -389,10 +387,10 @@ class Context extends EventEmitter {
 	 */
 	function is( $column, $value, $not = false ) {
 
-		$bang = $not ? "!" : "";
-		$or = $not ? " AND " : " OR ";
-		$novalue = $not ? "1=1" : "0=1";
-		$not = $not ? " NOT" : "";
+		$bang = $not ? '!' : '';
+		$or = $not ? ' AND ' : ' OR ';
+		$novalue = $not ? '1=1' : '0=1';
+		$not = $not ? ' NOT' : '';
 
 		// always treat value as array
 		if ( !is_array( $value ) ) {
@@ -409,9 +407,9 @@ class Context extends EventEmitter {
 			$value = $value[ 0 ];
 
 			if ( $value === null ) {
-				return $this( $column . " IS" . $not . " NULL" );
+				return $this( $column . ' IS' . $not . ' NULL' );
 			} else {
-				return $this( $column . " " . $bang . "= " . $this->quoteValue( $value ) );
+				return $this( $column . ' ' . $bang . '= ' . $this->quoteValue( $value ) );
 			}
 
 		} else if ( count( $value ) > 1 ) {
@@ -434,11 +432,11 @@ class Context extends EventEmitter {
 			$clauses = array();
 
 			if ( !empty( $values ) ) {
-				$clauses[] = $column . $not . " IN ( " . implode( ", ", $values ) . " )";
+				$clauses[] = $column . $not . ' IN ( ' . implode( ', ', $values ) . ' )';
 			}
 
 			if ( $null ) {
-				$clauses[] = $column . " IS" . $not . " NULL";
+				$clauses[] = $column . ' IS' . $not . ' NULL';
 			}
 
 			return $this( implode( $or, $clauses ) );
@@ -473,10 +471,10 @@ class Context extends EventEmitter {
 		$assign = array();
 
 		foreach ( $data as $column => $value ) {
-			$assign[] = $this->quoteIdentifier( $column ) . " = " . $this->quoteValue( $value );
+			$assign[] = $this->quoteIdentifier( $column ) . ' = ' . $this->quoteValue( $value );
 		}
 
-		return $this( implode( ", ", $assign ) );
+		return $this( implode( ', ', $assign ) );
 
 	}
 
@@ -489,7 +487,7 @@ class Context extends EventEmitter {
 	function quoteValue( $value ) {
 
 		if ( is_array( $value ) ) {
-			return $this( implode( ", ", array_map( array( $this, 'quoteValue' ), $value ) ) );
+			return $this( implode( ', ', array_map( array( $this, 'quoteValue' ), $value ) ) );
 		}
 
 		if ( $value instanceof SQL ) return $value;
@@ -533,23 +531,20 @@ class Context extends EventEmitter {
 	function quoteIdentifier( $identifier ) {
 
 		if ( is_array( $identifier ) ) {
-			return $this( implode( ", ", array_map( array( $this, 'quoteIdentifier' ), $identifier ) ) );
+			return $this( implode( ', ', array_map( array( $this, 'quoteIdentifier' ), $identifier ) ) );
 		}
 
 		if ( $identifier instanceof SQL ) return $identifier;
 
-		$delimiter = $this->identifierDelimiter;
-
-		if ( empty( $delimiter ) ) return $identifier;
-
-		$identifier = explode( ".", $identifier );
+		$delimiter = '"';
+		$identifier = explode( '.', $identifier );
 
 		$identifier = array_map(
 			function( $part ) use ( $delimiter ) { return $delimiter . str_replace( $delimiter, $delimiter.$delimiter, $part ) . $delimiter; },
 			$identifier
 		);
 
-		return $this( implode( ".", $identifier ) );
+		return $this( implode( '.', $identifier ) );
 
 	}
 
@@ -571,7 +566,7 @@ class Context extends EventEmitter {
 	/**
 	 * Run a transaction
 	 *
-	 * Supports nested transactions
+	 * Treats nested transactions as part of outer transaction
 	 *
 	 * @param callable $t The transaction body
 	 * @return mixed The return value of $fn
@@ -664,15 +659,6 @@ class Context extends EventEmitter {
 		return $this->structure;
 	}
 
-	/**
-	 * Get identifier delimiter
-	 *
-	 * @return string
-	 */
-	function getIdentifierDelimiter() {
-		return $this->identifierDelimiter;
-	}
-
 	//
 
 	/**
@@ -713,37 +699,44 @@ class Context extends EventEmitter {
 	 */
 	function exec( $statement, $params = array() ) {
 
-		$statement = $this( $statement, $params );
-
 		try {
-			$prepared = $statement->prepare();
-			if ( (string) $prepared === Context::NOOP ) {
+
+			$statement = $this( $statement, $params );
+			$resolved = $statement->resolve();
+
+			if ( (string) $resolved === Context::NOOP ) {
 				return $this->createResult( $statement, array() );
 			}
-			$pdoStatement = $prepared->getPdoStatement();
 
-			// cache lookup
+			// cache key
 			$key = json_encode( array(
-				(string) $prepared,
-				$prepared->getParams()
+				(string) $resolved,
+				$resolved->getParams()
 			) );
 
+			// cache lookup
 			$result = @$this->resultCache[ $key ];
 			if ( $result ) return $result;
 
 			$this->emit( 'exec', $statement );
-			$this->lastStatement = $statement;
+			$prepared = $resolved->prepare();
+			$pdoStatement = $prepared->getPdoStatement();
 
 			$pdoStatement->execute( $prepared->getParams() );
 
-			// store in cache
+			// cache store
 			$result = $this->resultCache[ $key ] = $this->createResult( $statement, $pdoStatement );
+
+			// track last executed statement for lastInsertId
+			$this->lastStatement = $statement;
 
 			return $result;
 
 		} catch ( \Exception $ex ) {
+
 			$this->emit( 'error', $statement );
 			throw $ex;
+
 		}
 
 	}
@@ -790,9 +783,6 @@ class Context extends EventEmitter {
 
 	/** @var Structure */
 	protected $structure;
-
-	/** @var string */
-	protected $identifierDelimiter = '"';
 
 	/** @var array */
 	protected $resultCache = array();
