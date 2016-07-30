@@ -52,9 +52,8 @@ class FindTest extends BaseTest {
 
 		$db->dummy()->where( 'test', null )->first();
 		$db->dummy()->where( 'test', 31 )->first();
-		$db->dummy()->whereNot( 'test', null )->first();
-		$db->dummy()->whereNot( 'test', 31 )->first();
 		$db->dummy()->where( 'test', array( 1, 2, 3 ) )->first();
+		$db->dummy()->where( array( 'test' => 31, 'id' => 1 ) )->first();
 		$db->dummy()->where( 'test = 31' )->first();
 		$db->dummy()->where( 'test = ?', array( 31 ) )->first();
 		$db->dummy()->where( 'test = ?', array( 32 ) )->first();
@@ -67,9 +66,8 @@ class FindTest extends BaseTest {
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy` WHERE `test` IS NULL",
 			"SELECT * FROM `dummy` WHERE `test` = '31'",
-			"SELECT * FROM `dummy` WHERE `test` IS NOT NULL",
-			"SELECT * FROM `dummy` WHERE `test` != '31'",
 			"SELECT * FROM `dummy` WHERE `test` IN ( '1', '2', '3' )",
+			"SELECT * FROM `dummy` WHERE (`test` = '31') AND `id` = '1'",
 			"SELECT * FROM `dummy` WHERE test = 31",
 			"SELECT * FROM `dummy` WHERE test = ?",
 			"SELECT * FROM `dummy` WHERE test = ?",
@@ -83,11 +81,41 @@ class FindTest extends BaseTest {
 			array(),
 			array(),
 			array(),
-			array(),
 			array( 31 ),
 			array( 32 ),
 			array( 'param' => 31 ),
 			array( 'a' => 31, 'b' => 0 )
+		), $this->params );
+
+	}
+
+	function testWhereNot() {
+
+		$db = $this->db();
+
+		$db->dummy()->whereNot( 'test', null )->first();
+		$db->dummy()->whereNot( 'test', 31 )->first();
+		$db->dummy()->whereNot( 'test', array( 1, 2, 3 ) )->first();
+		$db->dummy()->whereNot( array( 'test' => 31, 'id' => 1 ) )->first();
+		$db->dummy()
+			->whereNot( 'test', null )
+			->whereNot( 'test', 31 )
+			->first();
+
+		$this->assertEquals( array(
+			"SELECT * FROM `dummy` WHERE `test` IS NOT NULL",
+			"SELECT * FROM `dummy` WHERE `test` != '31'",
+			"SELECT * FROM `dummy` WHERE `test` NOT IN ( '1', '2', '3' )",
+			"SELECT * FROM `dummy` WHERE (`test` != '31') AND `id` != '1'",
+			"SELECT * FROM `dummy` WHERE (`test` IS NOT NULL) AND `test` != '31'"
+		), $this->statements );
+
+		$this->assertEquals( array(
+			array(),
+			array(),
+			array(),
+			array(),
+			array()
 		), $this->params );
 
 	}
@@ -104,16 +132,27 @@ class FindTest extends BaseTest {
 
 	}
 
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Invalid ORDER BY direction: DESK
+     */
+	function testInvalidOrderBy() {
+		$db = $this->db();
+		$db->dummy()->orderBy( 'id', 'DESK' );
+	}
+
 	function testLimit() {
 
 		$db = $this->db();
 
 		$db->dummy()->limit( 3 )->first();
 		$db->dummy()->limit( 3, 10 )->first();
+		$db->dummy()->limit()->first();
 
 		$this->assertEquals( array(
 			"SELECT * FROM `dummy` WHERE 1=1  LIMIT 3",
 			"SELECT * FROM `dummy` WHERE 1=1  LIMIT 3 OFFSET 10",
+			"SELECT * FROM `dummy` WHERE 1=1"
 		), $this->statements );
 
 	}

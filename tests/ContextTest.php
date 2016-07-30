@@ -369,4 +369,13 @@ class ContextTest extends BaseTest {
 		$db->tag();
 	}
 
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Invalid table reference: test.table
+     */
+	function testInvalidTable() {
+		$db = $this->db();
+		$db->table( 'test.table' );
+	}
+
 }

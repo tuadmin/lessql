@@ -347,7 +347,7 @@ class Context extends EventEmitter {
 	function orderBy( $column, $direction = 'ASC', $before = null ) {
 
 		if ( !preg_match( '/^asc|desc$/i', $direction ) ) {
-			throw new Exception( 'Invalid ORDER BY direction: ' + $direction );
+			throw new Exception( 'Invalid ORDER BY direction: ' . $direction );
 		}
 
 		return $this(
@@ -565,7 +565,7 @@ class Context extends EventEmitter {
 	 * @return SQL A fragment with a & prefix
 	 */
 	function table( $name ) {
-		if ( !preg_match( '([a-zA-Z_$][a-zA-Z0-9_$]+)', $name ) ) {
+		if ( !preg_match( '(^[a-zA-Z_$][a-zA-Z0-9_$]+$)', $name ) ) {
 			throw new Exception( 'Invalid table reference: ' . $name );
 		}
 		return $this( '&' . $name );
