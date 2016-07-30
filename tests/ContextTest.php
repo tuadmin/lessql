@@ -209,9 +209,10 @@ class ContextTest extends BaseTest {
 
 		$db = $this->db();
 
+		$insert = $db->insert( 'dummy', array() );
 		$this->assertEquals(
 			'INSERT INTO "dummy" ( "id" ) VALUES ( DEFAULT )',
-			(string) $db->insert( 'dummy', array() )
+			(string) $insert
 		);
 
 		if ( $this->getDriver() !== 'sqlite' ) {
