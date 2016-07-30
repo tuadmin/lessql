@@ -188,7 +188,6 @@ class ContextTest extends BaseTest {
 		$db = $this->db();
 
 		$db->runTransaction( function ( $db ) {
-			$db->insert( 'dummy', array() )->exec();
 			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) )->exec();
 			foreach ( array(
 				array( 'id' => 3,  'test' => 1 ),
@@ -198,12 +197,26 @@ class ContextTest extends BaseTest {
 		} );
 
 		$this->assertEquals( array(
-			"INSERT INTO `dummy` ( `id` ) VALUES ( NULL )",
 			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '2', '42' )",
 			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '3', '1' )",
 			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '4', '2' )",
 			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '5', '3' )"
 		), $this->statements );
+
+	}
+
+	function testInsertEmpty() {
+
+		$db = $this->db();
+
+		$this->assertEquals(
+			'INSERT INTO "dummy" ( "id" ) VALUES ( DEFAULT )',
+			(string) $db->insert( 'dummy', array() )
+		);
+
+		if ( $this->getDriver() !== 'sqlite' ) {
+			$insert->exec();
+		}
 
 	}
 
@@ -237,25 +250,20 @@ class ContextTest extends BaseTest {
 
 		$db = $this->db();
 
-		// not supported by sqlite < 3.7, skip
+		$insert = $db->insertBatch( 'dummy', array(
+			array( 'test' => 1 ),
+			array( 'test' => 2 ),
+			array( 'test' => 3 )
+		) );
 
-		try {
+		$this->assertEquals(
+			'INSERT INTO "dummy" ( "test" ) VALUES ( \'1\' ), ( \'2\' ), ( \'3\' )',
+			(string) $insert
+		);
 
-			$db->runTransaction( function ( $db ) {
-				$db->insertBatch( 'dummy', array(
-					array( 'test' => 1 ),
-					array( 'test' => 2 ),
-					array( 'test' => 3 )
-				) )->exec();
-			} );
-
-		} catch ( \Exception $ex ) {
-			// ignore
+		if ( $this->getDriver() !== 'sqlite' ) {
+			$insert->exec();
 		}
-
-		$this->assertEquals( array(
-			"INSERT INTO `dummy` ( `test` ) VALUES ( '1' ), ( '2' ), ( '3' )",
-		), $this->statements );
 
 	}
 

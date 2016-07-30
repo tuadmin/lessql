@@ -7,19 +7,19 @@ class MigrationTest extends BaseTest {
 		$db = $this->db();
 
 		try {
-			$db( 'DROP TABLE migration' )->exec();
+			$this->exec( 'DROP TABLE migration' );
 		} catch ( \Exception $ex ) {
 			// ignore
 		}
 
 		try {
-			$db( 'DROP TABLE lol' )->exec();
+			$this->exec( 'DROP TABLE lol' );
 		} catch ( \Exception $ex ) {
 			// ignore
 		}
 
 		try {
-			$db( 'DROP TABLE foo' )->exec();
+			$this->exec( 'DROP TABLE foo' );
 		} catch ( \Exception $ex ) {
 			// ignore
 		}

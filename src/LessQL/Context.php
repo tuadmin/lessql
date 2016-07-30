@@ -124,10 +124,24 @@ class Context extends EventEmitter {
 
 		$columns = $this->getColumns( $table, $rows );
 
+		$lists = array();
+
+		foreach ( $rows as $row ) {
+			$values = array();
+			foreach ( $columns as $column ) {
+				if ( array_key_exists( $column, $row ) ) {
+					$values[] = $this->quoteValue( $row[ $column ] );
+				} else {
+					$values[] = 'DEFAULT';
+				}
+			}
+			$lists[] = $this( "( " . implode( ", ", $values ) . " )" );
+		}
+
 		return $this( 'INSERT INTO ::table ( ::columns ) VALUES ::values', array(
 			'table' => $this->table( $table ),
 			'columns' => $this->quoteIdentifier( $columns ),
-			'values' => $this->getValueLists( $rows, $columns )
+			'values' => $lists
 		) );
 
 	}
@@ -195,29 +209,6 @@ class Context extends EventEmitter {
 		}
 
 		return $columns;
-
-	}
-
-	/**
-	 * Build lists of quoted values for INSERT
-	 *
-	 * @param array $rows
-	 * @param array $columns
-	 * @return array
-	 */
-	protected function getValueLists( $rows, $columns ) {
-
-		$lists = array();
-
-		foreach ( $rows as $row ) {
-			$values = array();
-			foreach ( $columns as $column ) {
-				$values[] = $this->quoteValue( @$row[ $column ] );
-			}
-			$lists[] = $this( "( " . implode( ", ", $values ) . " )" );
-		}
-
-		return $lists;
 
 	}
 
