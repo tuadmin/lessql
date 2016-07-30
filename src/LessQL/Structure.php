@@ -23,7 +23,7 @@ class Structure {
 	 * @return bool
 	 */
 	function hasTable( $table ) {
-		return empty( $this->tables ) || @$this->tables[ $table ];
+		return empty( $this->tables ) || isset( $this->tables[ $table ] );
 	}
 
 	/**
@@ -33,7 +33,7 @@ class Structure {
 	function hasTableOrAlias( $name ) {
 		$name = preg_replace( '/List$/', '', $name );
 		return $this->hasTable( $name ) ||
-			empty( $this->aliases ) || @$this->aliases[ $name ];
+			empty( $this->aliases ) || isset( $this->aliases[ $name ] );
  	}
 
 	/**
@@ -190,7 +190,9 @@ class Structure {
 	 * @return array
 	 */
 	function getRequired( $table ) {
-		return isset( $this->required[ $table ] ) ? $this->required[ $table ] : array();
+		return isset( $this->required[ $table ] ) ?
+			array_keys( $this->required[ $table ] ) :
+			array();
 	}
 
 	/**

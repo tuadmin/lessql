@@ -37,7 +37,7 @@ class StructureTest extends BaseTest {
 			'fid',
 			true,
 			true,
-			array( 9 => true, 10 => true ),
+			array( 9, 10 ),
 			'fooseq',
 			'baz_id_seq'
 		);

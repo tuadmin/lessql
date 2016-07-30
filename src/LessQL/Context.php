@@ -21,7 +21,8 @@ class Context extends EventEmitter {
 	function __construct( $pdo, array $options = array() ) {
 
 		$this->connection = Connection::get( $pdo );
-		$this->structure = @$options[ 'structure' ] ?: new Structure();
+		$this->structure = isset( $options[ 'structure' ] ) ?
+			$options[ 'structure' ] : new Structure();
 
 	}
 
@@ -119,8 +120,9 @@ class Context extends EventEmitter {
 	 */
 	function insertBatch( $table, $rows ) {
 
-		$columns = $this->getColumns( $rows );
-		if ( empty( $columns ) ) return $this( self::NOOP );
+		if ( count( $rows ) === 0 ) return $this( self::NOOP );
+
+		$columns = $this->getColumns( $table, $rows );
 
 		return $this( 'INSERT INTO ::table ( ::columns ) VALUES ::values', array(
 			'table' => $this->table( $table ),
@@ -144,8 +146,9 @@ class Context extends EventEmitter {
 
 		$result = $this( self::NOOP )->exec();
 
-		$columns = $this->getColumns( $rows );
-		if ( empty( $columns ) ) return $result;
+		if ( count( $rows ) === 0 ) return $result;
+
+		$columns = $this->getColumns( $table, $rows );
 
 		$prepared = $this( 'INSERT INTO ::table ( ::columns ) VALUES ::values', array(
 			'table' => $this->table( $table ),
@@ -174,7 +177,7 @@ class Context extends EventEmitter {
 	 * @param array $rows
 	 * @return array
 	 */
-	protected function getColumns( $rows ) {
+	protected function getColumns( $table, $rows ) {
 
 		$columns = array();
 
@@ -184,7 +187,14 @@ class Context extends EventEmitter {
 			}
 		}
 
-		return array_keys( $columns );
+		$columns = array_keys( $columns );
+
+		if ( empty( $columns ) ) {
+			$primary = $this->getStructure()->getPrimary( $table );
+			$columns = is_array( $primary ) ? $primary : array( $primary );
+		}
+
+		return $columns;
 
 	}
 
@@ -715,8 +725,7 @@ class Context extends EventEmitter {
 			) );
 
 			// cache lookup
-			$result = @$this->resultCache[ $key ];
-			if ( $result ) return $result;
+			if ( isset( $this->resultCache[ $key ] ) ) return $this->resultCache[ $key ];
 
 			$this->emit( 'exec', $statement );
 			$prepared = $resolved->prepare();

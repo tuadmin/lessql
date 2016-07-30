@@ -188,20 +188,21 @@ class ContextTest extends BaseTest {
 		$db = $this->db();
 
 		$db->runTransaction( function ( $db ) {
-			$db->insert( 'dummy', array() )->exec(); // does nothing
-			$db->insert( 'dummy', array( 'id' => 1, 'test' => 42 ) )->exec();
+			$db->insert( 'dummy', array() )->exec();
+			$db->insert( 'dummy', array( 'id' => 2, 'test' => 42 ) )->exec();
 			foreach ( array(
-				array( 'id' => 2,  'test' => 1 ),
-				array( 'id' => 3,  'test' => 2 ),
-				array( 'id' => 4,  'test' => 3 )
+				array( 'id' => 3,  'test' => 1 ),
+				array( 'id' => 4,  'test' => 2 ),
+				array( 'id' => 5,  'test' => 3 )
 			) as $row ) $db->insert( 'dummy', $row )->exec();
 		} );
 
 		$this->assertEquals( array(
-			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '1', '42' )",
-			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '2', '1' )",
-			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '3', '2' )",
-			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '4', '3' )"
+			"INSERT INTO `dummy` ( `id` ) VALUES ( NULL )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '2', '42' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '3', '1' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '4', '2' )",
+			"INSERT INTO `dummy` ( `id`, `test` ) VALUES ( '5', '3' )"
 		), $this->statements );
 
 	}
@@ -357,6 +358,15 @@ class ContextTest extends BaseTest {
 			"DELETE FROM `categorization` WHERE ( `category_id` = '22' AND `post_id` = '11' ) OR ( `category_id` = '23' AND `post_id` = '11' )",
 		), $this->statements );
 
+	}
+
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Unknown table: tag
+     */
+	function testQueryUnknown() {
+		$db = $this->db();
+		$db->tag();
 	}
 
 }

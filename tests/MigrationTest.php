@@ -11,11 +11,13 @@ class MigrationTest extends BaseTest {
 		} catch ( \Exception $ex ) {
 			// ignore
 		}
+
 		try {
 			$db( 'DROP TABLE lol' )->exec();
 		} catch ( \Exception $ex ) {
 			// ignore
 		}
+
 		try {
 			$db( 'DROP TABLE foo' )->exec();
 		} catch ( \Exception $ex ) {
@@ -24,9 +26,9 @@ class MigrationTest extends BaseTest {
 
 
 		$migration = $db->createMigration();
-		$migration->apply( 'create', 'CREATE TABLE lol (id INT)' );
+		$migration->apply( 'create', 'CREATE TABLE migration_test (id INT)' );
 		$migration->apply( 'drop', function ( $context ) {
-			$context( 'DROP TABLE lol' )->exec();
+			$context( 'DROP TABLE migration_test' )->exec();
 		} );
 
 		$log = $migration->log();
@@ -38,7 +40,7 @@ class MigrationTest extends BaseTest {
 		$migration->apply( 'x', 'CREATE TABLE foo (id INT)' );
 		$migration->apply( 'create', 'never' );
 		$migration->apply( 'y', 'SELECT * FROM foo' );
-		$migration->apply( 'z', 'INSERT INTO lol (1)' );
+		$migration->apply( 'z', 'INSERT INTO migration_test (id) VALUES (1)' );
 		$migration->apply( 'zz', 'SELECT * FROM foo' );
 
 		$log = $migration->log();

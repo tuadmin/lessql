@@ -140,7 +140,7 @@ class SQLTest extends BaseTest {
      * @expectedException \LessQL\Exception
 	 * @expectedExceptionMessage Unknown table/alias: tag
      */
-	function testUnknownTable() {
+	function testQueryUnknown() {
 		$db = $this->db();
 		$db( 'SELECT * FROM &post' )->tag();
 	}

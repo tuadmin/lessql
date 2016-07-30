@@ -14,7 +14,7 @@ class EventEmitter {
 	 * @param mixed $data
 	 */
 	function emit( $event, $data = null ) {
-		if ( @$this->listeners[ $event ] ) {
+		if ( isset( $this->listeners[ $event ] ) ) {
 			foreach ( $this->listeners[ $event ] as $listener ) {
 				call_user_func( $listener, $data );
 			}
@@ -33,7 +33,7 @@ class EventEmitter {
 			throw new Exception( 'Listener must be callable' );
 		}
 
-		if ( @$this->listeners[ $event ] ) {
+		if ( isset( $this->listeners[ $event ] ) ) {
 			$this->listeners[ $event ][] = $listener;
 			return $this;
 		}

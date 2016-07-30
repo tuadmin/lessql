@@ -42,6 +42,21 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
+	 * @see query
+	 * @return SQL
+	 */
+	function __call( $name, $args ) {
+
+		$structure = $this->getContext()->getStructure();
+		if ( !$structure->hasTableOrAlias( $name ) ) {
+			throw new Exception( 'Unknown table/alias: ' . $name );
+		}
+
+		array_unshift( $args, $name );
+		return call_user_func_array( array( $this, 'query' ), $args );
+	}
+
+	/**
 	 * Query referenced table. Suffix "List" gets many rows
 	 *
 	 * @param string $name

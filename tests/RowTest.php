@@ -141,6 +141,19 @@ class RowTest extends BaseTest {
 
 	}
 
+	function testUpdate() {
+
+		$db = $this->db();
+
+		$db->person()->first()->update( array( 'name' => 'Bud Spencer' ) );
+
+		$this->assertEquals( array(
+			"SELECT * FROM `person` WHERE 1=1",
+			"UPDATE `person` SET `name` = 'Bud Spencer' WHERE `id` = '1'",
+		), $this->statements );
+
+	}
+
 	function testDelete() {
 
 		$db = $this->db();
@@ -179,6 +192,38 @@ class RowTest extends BaseTest {
 					'category' => array( 'title' => 'Fantasy' )
 				)
 
+			)
+		) );
+
+		$db->runTransaction( array( $row, 'save' ) );
+
+		$this->assertEquals( array(
+			"INSERT INTO `post` ( `title`, `author_id`, `editor_id` ) VALUES ( 'Fantasy Movie Review', NULL, NULL )",
+			"INSERT INTO `person` ( `name` ) VALUES ( 'Fantasy Guy' )",
+			"INSERT INTO `person` ( `name` ) VALUES ( 'Big Boss' )",
+			"INSERT INTO `category` ( `title` ) VALUES ( 'Movies' )",
+			"INSERT INTO `category` ( `title` ) VALUES ( 'Fantasy' )",
+			"UPDATE `post` SET `author_id` = '4', `editor_id` = '5' WHERE `id` = '14'",
+			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '24' )",
+			"INSERT INTO `categorization` ( `post_id`, `category_id` ) VALUES ( '14', '25' )"
+		), $this->statements );
+
+	}
+
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Cannot recursively save structure, add required values or allow NULL
+     */
+	function testCannotSave() {
+
+		$db = $this->db();
+
+		$row = $db->createRow( 'post', array(
+			'title' => 'Fantasy Movie Review',
+			'categorizationList' => array(
+				array(
+
+				)
 			)
 		) );
 
@@ -320,6 +365,21 @@ class RowTest extends BaseTest {
 		$this->assertTrue( $row->hasProperty( 'bar' ) );
 		$this->assertFalse( $row->hasProperty( 'baz' ) );
 
+		unset( $row[ 'foo' ] );
+		unset( $row[ 'goo' ] );
+
+		$this->assertFalse( $row->hasProperty( 'foo' ) );
+		$this->assertFalse( $row->hasProperty( 'goo' ) );
+
+	}
+
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Unknown table/alias: tag
+     */
+	function testQueryUnknown() {
+		$db = $this->db();
+		$db->createRow( 'post' )->tag();
 	}
 
 }

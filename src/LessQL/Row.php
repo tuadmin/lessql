@@ -51,7 +51,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		if ( is_array( $value ) ) {
 
-			$name = preg_replace( '/List$|_list$/', '', $column );
+			$name = preg_replace( '/List$/', '', $column );
 			$table = $this->getContext()->getStructure()->getAlias( $name );
 
 			if ( $name === $column ) { // row
@@ -181,13 +181,10 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	 * @return $this
 	 */
 	function setData( $data ) {
-
 		foreach ( $data as $column => $value ) {
 			$this->__set( $column, $value );
 		}
-
 		return $this;
-
 	}
 
 	/**
@@ -290,15 +287,12 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			foreach ( $list as $row ) {
 
 				$row->updateReferences();
-
 				$missing = $row->getMissing();
 
-				if ( empty( $missing ) ) {
-
+				if ( empty( $missing ) && !$row->isClean() ) {
 					$row->save( false );
 					$row->updateBackReferences();
 					$solvable = true;
-
 				}
 
 				if ( $row->isClean() ) ++$clean;
@@ -306,11 +300,9 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 			}
 
 			if ( !$solvable ) {
-
 				throw new Exception(
-					'Cannot recursively save structure (' . $table . ') - add required values or allow NULL'
+					'Cannot recursively save structure, add required values or allow NULL'
 				);
-
 			}
 
 			if ( $clean === $count ) break;
@@ -348,13 +340,11 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
 	 * Check references and set respective keys
-	 * Returns list of keys to unknown references
 	 *
-	 * @return array
+	 * @return $this
 	 */
 	function updateReferences() {
 
-		$unknown = array();
 		$context = $this->getContext();
 
 		foreach ( $this->_properties as $column => $value ) {
@@ -368,7 +358,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 		}
 
-		return $unknown;
+		return $this;
 
 	}
 
@@ -392,7 +382,7 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 				$key = $context->getStructure()->getBackReference( $this->getTable(), $column );
 
 				foreach ( $value as $row ) {
-					$row->{ $key } = $id;
+					$row[ $key ] = $id;
 				}
 
 			}
@@ -405,7 +395,6 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	/**
 	 * Get missing columns, i.e. any that is null but required by the schema.
-	 * Internal
 	 *
 	 * @return array
 	 */
@@ -414,12 +403,10 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 		$missing = array();
 		$required = $this->getContext()->getStructure()->getRequired( $this->getTable() );
 
-		foreach ( $required as $column => $true ) {
-
+		foreach ( $required as $column ) {
 			if ( !isset( $this[ $column ] ) ) {
 				$missing[] = $column;
 			}
-
 		}
 
 		return $missing;
@@ -622,11 +609,11 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 
 	//
 
-	/** @var string|null */
-	protected $_table;
-
 	/** @var Context|null */
 	protected $_context;
+
+	/** @var string|null */
+	protected $_table;
 
 	/** @var array */
 	protected $_properties = array();
