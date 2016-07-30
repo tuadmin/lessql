@@ -11,7 +11,7 @@ namespace LessQL;
 class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 
 	/**
-	 * Constructor, only for internal use
+	 * Constructor. Internal
 	 */
 	function __construct( $statement, $source ) {
 		$this->statement = $statement;
@@ -109,16 +109,16 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return SQL
 	 */
 	function update( $data ) {
-		$context = $this->statement->getContext();
-		return $context->update( $this->getTable(), $data, $this->wherePrimary() );
+		return $this->getContext()
+			->update( $this->getTable(), $data, $this->wherePrimary() );
 	}
 
 	/**
 	 * @return SQL
 	 */
 	function delete() {
-		$context = $this->statement->getContext();
-		return $context->delete( $this->getTable(), $this->wherePrimary() );
+		return $this->getContext()
+			->delete( $this->getTable(), $this->wherePrimary() );
 	}
 
 	/**
@@ -126,7 +126,7 @@ class Result implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 */
 	protected function wherePrimary() {
 
-		$context = $this->statement->getContext();
+		$context = $this->getContext();
 		$table = $this->getTable();
 		$primary = $context->getStructure()->getPrimary( $table );
 

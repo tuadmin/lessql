@@ -96,14 +96,20 @@ class Row implements \ArrayAccess, \IteratorAggregate, \JsonSerializable {
 	}
 
 	/**
-	 * Get referenced row(s) by name. Suffix "List" gets many rows using
-	 * a back reference.
+	 * Query referenced data.
+	 * Suffix "List" gets many rows using a back reference.
 	 *
 	 * @param string $name
 	 * @param array $args
 	 * @return mixed
 	 */
 	function __call( $name, $args ) {
+
+		$structure = $this->getContext()->getStructure();
+		if ( !$structure->hasTableOrAlias( $name ) ) {
+			throw new Exception( 'Unknown table/alias: ' . $name );
+		}
+
 		array_unshift( $args, $name );
 		return call_user_func_array( array( $this, 'query' ), $args );
 	}

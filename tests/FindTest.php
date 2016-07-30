@@ -6,9 +6,9 @@ class FindTest extends BaseTest {
 
 		$db = $this->db();
 
-		$a = $db->user( 2 );
-		$b = $db->user( 3 );
-		$c = $db->user( 42 );
+		$a = $db->person( 2 );
+		$b = $db->person( 3 );
+		$c = $db->person( 42 );
 
 		$this->assertNotNull( $a );
 		$this->assertNotNull( $b );
@@ -28,8 +28,8 @@ class FindTest extends BaseTest {
 
 		$this->assertNotNull( $post );
 
-		$author = $post->user()->via( 'author_id' )->first();
-		$editor = $post->user()->via( 'editor_id' )->first();
+		$author = $post->person()->via( 'author_id' )->first();
+		$editor = $post->person()->via( 'editor_id' )->first();
 
 		$this->assertEquals( 1, $author->id );
 		$this->assertEquals( 2, $editor->id );
@@ -39,8 +39,8 @@ class FindTest extends BaseTest {
 
 		$this->assertEquals( array(
 			"SELECT * FROM `post` WHERE `id` = '12'",
-			"SELECT * FROM `user` WHERE `id` = '1'",
-			"SELECT * FROM `user` WHERE `id` = '2'",
+			"SELECT * FROM `person` WHERE `id` = '1'",
+			"SELECT * FROM `person` WHERE `id` = '2'",
 			"SELECT * FROM `post` WHERE `author_id` IN ( '1', '2' )"
 		), $this->statements );
 
@@ -166,9 +166,9 @@ class FindTest extends BaseTest {
 
 		$this->assertEquals( array(
 			"SELECT * FROM `post` WHERE 1=1 ORDER BY `date_published` DESC",
-			"SELECT * FROM `user` WHERE `id` IN ( '2', '1' )",
-			"SELECT * FROM `user` WHERE `id` IN ( '3', '2' )",
-			"SELECT * FROM `user` WHERE (id > ?) AND `id` IN ( '3', '2' )",
+			"SELECT * FROM `person` WHERE `id` IN ( '2', '1' )",
+			"SELECT * FROM `person` WHERE `id` IN ( '3', '2' )",
+			"SELECT * FROM `person` WHERE (id > ?) AND `id` IN ( '3', '2' )",
 			"SELECT * FROM `categorization` WHERE `post_id` IN ( '13', '11', '12' )",
 			"SELECT * FROM `category` WHERE `id` IN ( '22', '23', '21' )",
 			"SELECT * FROM `category` WHERE (id > ?) AND `id` IN ( '22', '23', '21' )"
@@ -201,12 +201,12 @@ class FindTest extends BaseTest {
 
 		$db = $this->db();
 
-		foreach ( $db->user() as $user ) {
-			$posts_as_editor = $user->edit_postList()->exec();
+		foreach ( $db->person() as $person ) {
+			$posts_as_editor = $person->edit_postList()->exec();
 		}
 
 		$this->assertEquals( array(
-			"SELECT * FROM `user` WHERE 1=1",
+			"SELECT * FROM `person` WHERE 1=1",
 			"SELECT * FROM `post` WHERE `editor_id` IN ( '1', '2', '3' )"
 		), $this->statements );
 
@@ -219,7 +219,7 @@ class FindTest extends BaseTest {
 
 		$db = $this->db();
 
-		$ids = $db->user()->select( 'id' );
+		$ids = $db->person()->select( 'id' );
 		foreach ( $ids as $row ) {
 			$row[ 'id' ] = intval( $row[ 'id' ] );
 		}
@@ -231,9 +231,9 @@ class FindTest extends BaseTest {
 
 	function testBadReference() {
 		$db = $this->db();
-		$db->user()->post()->exec();
+		$db->person()->post()->exec();
 		$this->assertEquals( array(
-			"SELECT * FROM `user` WHERE 1=1",
+			"SELECT * FROM `person` WHERE 1=1",
 			"SELECT * FROM `post` WHERE 0=1"
 		), $this->statements );
 	}

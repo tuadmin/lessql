@@ -38,12 +38,12 @@ class SQLTest extends BaseTest {
 
 		$this->assertEquals(
 			'post',
-			$db( 'SELECT * FROM &post, &user' )->getTable()
+			$db( 'SELECT * FROM &post, &person' )->getTable()
 		);
 
 		$this->assertEquals(
 			'post',
-			$db( 'SELECT * FROM ::table, &user', array(
+			$db( 'SELECT * FROM ::table, &person', array(
 				'table' => $db->table( 'post' )
 			) )->getTable()
 		);
@@ -73,14 +73,14 @@ class SQLTest extends BaseTest {
 		$db = $this->db();
 
 		$posts = $db( 'SELECT * FROM &post' );
-		$author = $db( 'SELECT * FROM &user WHERE ::where' )
+		$author = $db( 'SELECT * FROM &person WHERE ::where' )
 			->referencedBy( $posts->first() )
 			->via( 'author_id' )
 			->first();
 
 		$this->assertEquals( 'Writer', $author[ 'name' ] );
 
-		$authors = $db( 'SELECT * FROM &user WHERE ::where' )
+		$authors = $db( 'SELECT * FROM &person WHERE ::where' )
 			->referencedBy( $posts )
 			->via( 'author_id' );
 
@@ -104,7 +104,7 @@ class SQLTest extends BaseTest {
 
 		$db = $this->db();
 
-		$authors = $db( 'SELECT * FROM &user' );
+		$authors = $db( 'SELECT * FROM &person' );
 		$posts = $db( 'SELECT * FROM &post WHERE ::where' )
 			->referencing( $authors->first() )
 			->via( 'author_id' );

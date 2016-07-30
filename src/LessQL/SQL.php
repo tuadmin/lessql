@@ -141,15 +141,6 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	}
 
 	/**
-	 * Execute and return inserted id, if any
-	 *
-	 * @return string
-	 */
-	function getInsertId() {
-		return $this->exec()->getInsertId();
-	}
-
-	/**
 	 * Query referenced table. Suffix "List" gets many rows
 	 *
 	 * @param string $name
@@ -158,6 +149,12 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return SQL
 	 */
 	function __call( $name, $args ) {
+
+		$structure = $this->getContext()->getStructure();
+		if ( !$structure->hasTableOrAlias( $name ) ) {
+			throw new Exception( 'Unknown table/alias: ' . $name );
+		}
+
 		array_unshift( $args, $name );
 		return call_user_func_array( array( $this, 'query' ), $args );
 	}
@@ -324,8 +321,13 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 	 * @return string|null
 	 */
 	function getTable() {
-		$this->resolve();
-		return $this->table;
+		try {
+			return $this->resolve()->table;
+		} catch ( Exception $ex ) {
+			// resolving might fail because of missing params
+			// we can still return the table if it was set
+			return $this->table;
+		}
 	}
 
 	/**
@@ -448,6 +450,8 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 			case self::TOKEN_DOUBLE_QUESTION_MARK:
 				if ( array_key_exists( $q, $this->params ) ) {
 					$r = $context->quoteValue( $this->params[ $q ] );
+				} else {
+					throw new Exception( 'Undefined parameter ' . $q );
 				}
 				++$q;
 				break;
@@ -456,13 +460,13 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				$key = substr( $key, 1 );
 				if ( array_key_exists( $key, $this->params ) ) {
 					$r = $context->quoteValue( $this->params[ $key ] );
+				} else {
+					throw new Exception( 'Undefined parameter ' . $key );
 				}
 				break;
 
 			case self::TOKEN_AMPERSAND_MARKER:
-				if ( !$this->table ) {
-					$this->table = $key;
-				}
+				if ( !$this->table ) $this->table = $key;
 				$r = $context->quoteIdentifier( $context->getStructure()->rewrite( $key ) );
 				break;
 			}
@@ -492,6 +496,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 		}
 
 		$this->resolved = $context( $resolved, $params );
+		$this->resolved->table = $this->table;
 		$this->resolved->resolved = $this->resolved;
 
 		return $this->resolved;

@@ -27,6 +27,16 @@ class Structure {
 	}
 
 	/**
+	 * @param string $name
+	 * @return bool
+	 */
+	function hasTableOrAlias( $name ) {
+		$name = preg_replace( '/List$/', '', $name );
+ 		return empty( $this->aliases ) || @$this->aliases[ $name ] ||
+			$this->hasTable( $name );
+ 	}
+
+	/**
 	 * Get primary key of a table, may be array for compound keys
 	 *
 	 * Convention is "id"

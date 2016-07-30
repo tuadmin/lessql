@@ -153,7 +153,10 @@ $statement = $db->update( $table, $set, $whereOptional, $paramsOptional );
 
 // generate DELETE statement
 // DELETE FROM ... [WHERE ...]
-$statement = $db->delete( $table, $whereOptional, $paramsOptional );         
+$statement = $db->delete( $table, $whereOptional, $paramsOptional );
+
+// get last insert id
+$id = $db->lastInsertId();
 ```
 
 
@@ -164,6 +167,8 @@ $db->runTransaction( function ( $db ) {
     // transaction body
     // commit on success
     // rollback on exception
+    // nested transactions are handled as part of outer transaction
+    // failed nested transactions will roll back outer transaction
 } );
 ```
 

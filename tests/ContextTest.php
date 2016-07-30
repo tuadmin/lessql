@@ -146,13 +146,13 @@ class ContextTest extends BaseTest {
 
 		$db = $this->db();
 
-		$result1 = $db->user();
-		$result2 = $db->query( 'user' );
+		$result1 = $db->person();
+		$result2 = $db->query( 'person' );
 
-		$row1 = $db->user( 1 );
-		$row2 = $db->query( 'user', 2 );
+		$row1 = $db->person( 1 );
+		$row2 = $db->query( 'person', 2 );
 
-		$ex = array( 'user', 'user', 'user', 'user', 1, 2 );
+		$ex = array( 'person', 'person', 'person', 'person', 1, 2 );
 		$a = array(
 			(string) $result1->getTable(),
 			(string) $result2->getTable(),
@@ -170,14 +170,14 @@ class ContextTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'name' => 'foo' ) );
+		$row = $db->createRow( 'person', array( 'name' => 'foo' ) );
 
 		$this->assertTrue( $row instanceof \LessQL\Row );
-		$this->assertSame( 'user', $row->getTable() );
+		$this->assertSame( 'person', $row->getTable() );
 
 		$row->save();
 
-		$row = $db->user( $row[ 'id' ] );
+		$row = $db->person( $row[ 'id' ] );
 
 		$this->assertSame( 'foo', $row[ 'name' ] );
 

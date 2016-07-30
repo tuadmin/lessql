@@ -57,7 +57,7 @@ class StructureTest extends BaseTest {
 
 		$db->runTransaction( function ( $db ) {
 			$db->post()->exec();
-			$db->insert( 'user', array( 'test' => 42 ) )->exec();
+			$db->insert( 'person', array( 'test' => 42 ) )->exec();
 			$db->update( 'category', array( 'test' => 42 ) )->exec();
 			$db->delete( 'post' )->exec();
 		} );

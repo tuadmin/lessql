@@ -29,8 +29,12 @@ class EventEmitter {
 	 * @param callable $listener
 	 */
 	function on( $event, $listener ) {
+		if ( !is_callable( $listener ) ) {
+			throw new Exception( 'Listener must be callable' );
+		}
+
 		if ( @$this->listeners[ $event ] ) {
-			$this->listeners[ $event ][] = $this->listeners;
+			$this->listeners[ $event ][] = $listener;
 			return $this;
 		}
 		$this->listeners[ $event ] = array( $listener );

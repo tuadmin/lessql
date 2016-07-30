@@ -6,7 +6,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( 'person', array( 'name' => 'Foo Bar' ) );
 
 		$row[ 'bar' ] = 1;
 		$row->baz = 2;
@@ -51,7 +51,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( 'person', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$this->assertEquals( array( 'name' => 'Foo Bar', 'id' => 42 ), $row->getModified() );
 		$this->assertEquals( null, $row->getOriginalid() );
@@ -69,7 +69,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( 'person', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$a = array(
 			$row[ 'id' ],
@@ -121,7 +121,7 @@ class RowTest extends BaseTest {
 
 		$row = $db->createRow( 'post', array(
 			'title' => 'Fantasy Movie Review',
-			'user' => array(
+			'person' => array(
 				'name' => 'Fantasy Guy'
 			),
 			'categorizationList' => array(
@@ -145,7 +145,7 @@ class RowTest extends BaseTest {
 
 		$db = $this->db();
 
-		$row = $db->createRow( 'user', array( 'id' => 42, 'name' => 'Foo Bar' ) );
+		$row = $db->createRow( 'person', array( 'id' => 42, 'name' => 'Foo Bar' ) );
 
 		$row->delete(); // does nothing
 
@@ -154,7 +154,7 @@ class RowTest extends BaseTest {
 
 		$this->assertFalse( $row->isClean() );
 		$this->assertFalse( $row->exists() );
-		$this->assertEquals( array( "DELETE FROM `user` WHERE `id` = '42'" ), $this->statements );
+		$this->assertEquals( array( "DELETE FROM `person` WHERE `id` = '42'" ), $this->statements );
 
 	}
 
@@ -186,8 +186,8 @@ class RowTest extends BaseTest {
 
 		$this->assertEquals( array(
 			"INSERT INTO `post` ( `title`, `author_id`, `editor_id` ) VALUES ( 'Fantasy Movie Review', NULL, NULL )",
-			"INSERT INTO `user` ( `name` ) VALUES ( 'Fantasy Guy' )",
-			"INSERT INTO `user` ( `name` ) VALUES ( 'Big Boss' )",
+			"INSERT INTO `person` ( `name` ) VALUES ( 'Fantasy Guy' )",
+			"INSERT INTO `person` ( `name` ) VALUES ( 'Big Boss' )",
 			"INSERT INTO `category` ( `title` ) VALUES ( 'Movies' )",
 			"INSERT INTO `category` ( `title` ) VALUES ( 'Fantasy' )",
 			"UPDATE `post` SET `author_id` = '4', `editor_id` = '5' WHERE `id` = '14'",
@@ -217,7 +217,7 @@ class RowTest extends BaseTest {
 			)
 		);
 
-		$row = $db->createRow( 'user', $data );
+		$row = $db->createRow( 'person', $data );
 
 		$a = $row->jsonSerialize();
 		$ex = $data;
@@ -245,7 +245,7 @@ class RowTest extends BaseTest {
 
 		$this->assertEquals( array(
 			"SELECT * FROM `post` WHERE `id` = '11'",
-			"SELECT * FROM `user` WHERE `id` = '1'",
+			"SELECT * FROM `person` WHERE `id` = '1'",
 			"SELECT * FROM `categorization` WHERE `post_id` = '11'",
 		), $this->statements );
 
@@ -253,7 +253,7 @@ class RowTest extends BaseTest {
 
 	function testReadmeExample() {
 
-		self::reset();
+		$this->resetData();
 		$db = $this->db();
 
 		$category = $db->category( 21 );
