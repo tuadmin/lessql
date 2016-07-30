@@ -32,8 +32,8 @@ class Structure {
 	 */
 	function hasTableOrAlias( $name ) {
 		$name = preg_replace( '/List$/', '', $name );
- 		return empty( $this->aliases ) || @$this->aliases[ $name ] ||
-			$this->hasTable( $name );
+		return $this->hasTable( $name ) ||
+			empty( $this->aliases ) || @$this->aliases[ $name ];
  	}
 
 	/**

@@ -451,7 +451,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( array_key_exists( $q, $this->params ) ) {
 					$r = $context->quoteValue( $this->params[ $q ] );
 				} else {
-					throw new Exception( 'Undefined parameter ' . $q );
+					throw new Exception( 'Unresolved parameter ' . $q );
 				}
 				++$q;
 				break;
@@ -461,7 +461,7 @@ class SQL implements \IteratorAggregate, \Countable, \JsonSerializable {
 				if ( array_key_exists( $key, $this->params ) ) {
 					$r = $context->quoteValue( $this->params[ $key ] );
 				} else {
-					throw new Exception( 'Undefined parameter ' . $key );
+					throw new Exception( 'Unresolved parameter ' . $key );
 				}
 				break;
 

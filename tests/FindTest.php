@@ -118,16 +118,32 @@ class FindTest extends BaseTest {
 
 	}
 
+	function testPaged() {
+
+		$db = $this->db();
+
+		$db->dummy()->paged( 10, 1 )->first();
+		$db->dummy()->paged( 10, 3 )->first();
+
+		$this->assertEquals( array(
+			"SELECT * FROM `dummy` WHERE 1=1  LIMIT 10 OFFSET 0",
+			"SELECT * FROM `dummy` WHERE 1=1  LIMIT 10 OFFSET 20",
+		), $this->statements );
+
+	}
+
 	function testSelect() {
 
 		$db = $this->db();
 
 		$db->dummy()->select( 'test' )->first();
 		$db->dummy()->select( 'test', 'id' )->first();
+		$db->clear()->dummy()->select( 'test' )->select( 'id' )->first();
 
 		$this->assertEquals( array(
 			"SELECT `test` FROM `dummy` WHERE 1=1",
 			"SELECT `test`, `id` FROM `dummy` WHERE 1=1",
+			"SELECT `test`, `id` FROM `dummy` WHERE 1=1"
 		), $this->statements );
 
 	}

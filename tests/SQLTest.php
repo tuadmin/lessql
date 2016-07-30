@@ -32,6 +32,23 @@ class SQLTest extends BaseTest {
 
 	}
 
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Unresolved parameter fields
+     */
+	function testUnresolved() {
+		$db = $this->db();
+		$db( 'SELECT ::fields FROM &post' )->resolve();
+	}
+
+	function testUnresolvedString() {
+		$db = $this->db();
+		$this->assertEquals(
+			'Unresolved parameter 0',
+			(string) $db( 'SELECT ?? FROM &post' )
+		);
+	}
+
 	function testGetTable() {
 
 		$db = $this->db();
@@ -111,6 +128,31 @@ class SQLTest extends BaseTest {
 
 		$this->assertEquals( 2, $posts->count() );
 
+	}
+
+	function testInvoke() {
+		$db = $this->db();
+		$persons = $db( 'SELECT * FROM &person' );
+		$this->assertEquals( 3, count( $persons() ) );
+	}
+
+	/**
+     * @expectedException \LessQL\Exception
+	 * @expectedExceptionMessage Unknown table/alias: tag
+     */
+	function testUnknownTable() {
+		$db = $this->db();
+		$db( 'SELECT * FROM &post' )->tag();
+	}
+
+	function testAffected() {
+		$db = $this->db();
+
+		$a = $db( 'UPDATE &post SET title = ?', array( 'test' ) )->affected();
+		$this->assertEquals( 3, $a );
+
+		$a = $db( 'UPDATE &post SET title = ? WHERE 0=1', array( 'test' ) )->affected();
+		$this->assertEquals( 0, $a );
 	}
 
 }
