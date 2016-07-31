@@ -3,18 +3,11 @@
 
 ## Installation
 
-Install LessQL via [Composer](http://packagist.org),
-the package name is `morris/lessql`:
+LessQL requires PHP >= 5.3.4 and PDO. Installation via [Composer](http://packagist.org):
 
-```json
-{
-	"require": {
-		"morris/lessql": "~0.3"
-	}
-}
 ```
-
-LessQL requires PHP >= 5.3.4 and PDO.
+composer require morris/lessql
+```
 
 
 ## Database
@@ -30,7 +23,7 @@ categorization: category_id, post_id
 category:       id, title
 ```
 
-You can use LessQL's [migration framework](migrations.md) to generate the database.
+You can use [LessQL Runners](runners.md) to generate your database.
 
 
 ## Setup
@@ -109,7 +102,7 @@ foreach ( $db->post()
 The `orderBy` and `where` calls are basic SQL,
 `paged( 10, 1 )` limits to page 1 where pages have a size of 10 posts.
 
-Note that `Result` objects are <strong>immutable</strong>.
+Note that `Result` objects are __immutable__.
 All filter methods like `where` or `orderBy`
 return a new `Result` instance with the new `SELECT` information.
 

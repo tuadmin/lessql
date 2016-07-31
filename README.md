@@ -61,9 +61,8 @@ $row->save();
 - Constant number of queries, no N+1 problems
 - Truly blend with raw [SQL](docs/sql.md) at any time
 - Save complex, nested structures with one method call
-- [Convention](docs/conventions.md) over configuration
+- [Convention over configuration](docs/conventions.md)
 - Concise and intuitive [API](docs/api.md)
-- Novel [migration framework](docs/migrations.md) for idempotent migrations
 - Work closely to your database: LessQL is not an ORM
 - Fully tested with SQLite3, MySQL and PostgreSQL
 
@@ -81,6 +80,7 @@ LessQL requires PHP >= 5.3.4 and PDO.
 - [Guide](docs/guide.md)
 - [Conventions](docs/conventions.md)
 - [SQL](docs/sql.md)
-- [Migrations](docs/migrations.md)
+- [Events](docs/events.md)
+- [Runners](docs/runners.md)
 - [API](docs/api.md)
 - [About](docs/about.md)

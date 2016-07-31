@@ -12,6 +12,8 @@ namespace LessQL;
  */
 class Context extends EventEmitter {
 
+	const VERSION = '1.0.0-beta1';
+
 	/**
 	 * Constructor. Sets PDO to exception mode.
 	 *
@@ -631,13 +633,13 @@ class Context extends EventEmitter {
 	}
 
 	/**
-	 * Create a migration
+	 * Create a runner
 	 *
 	 * @param string $path
-	 * @return Migration
+	 * @return Runner
 	 */
-	function createMigration( $table = 'migration' ) {
-		return new Migration( $this, $table );
+	function createRunner( $table = null ) {
+		return new Runner( $this, $table );
 	}
 
 	//

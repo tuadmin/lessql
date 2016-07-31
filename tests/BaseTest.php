@@ -55,7 +55,7 @@ class BaseTest extends PHPUnit_Framework_TestCase {
 	}
 
 	function onError( $sql ) {
-		var_dump( (string) $sql );
+		//var_dump( (string) $sql );
 	}
 
 	function str( $mixed ) {
