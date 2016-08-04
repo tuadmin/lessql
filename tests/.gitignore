@@ -2,4 +2,3 @@
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
-migration.php
