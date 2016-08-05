@@ -14,7 +14,7 @@ $db = new \LessQL\Context( $pdo );
 
 ## Structure
 
-Defining structural information (see [Conventions](conventions.md) for usage):
+Defining structural information (see [Structure](structure.md) for usage):
 
 ```php
 $structure = $db->getStructure();

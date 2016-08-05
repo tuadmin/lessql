@@ -1,6 +1,6 @@
-# Conventions <small>and Workarounds</small>
+# Structure
 
-LessQL relies entirely on two conventions:
+LessQL works best on databases following two conventions:
 
 - Primary key columns should be `id`
 - Foreign key columns should be `<table>_id`
@@ -8,7 +8,8 @@ LessQL relies entirely on two conventions:
 A side effect of these conventions is to use __singular table names__,
 because plurals are irregular and `product.categories_id` sounds wrong.
 
-More often than not, these conventions are not enough to work with your database,
+More often than not,
+these conventions are not enough to work with your database,
 and workarounds are needed. You will most likely have join
 tables with compound primary keys. Or you might have
 two columns in one table pointing to the same foreign table.

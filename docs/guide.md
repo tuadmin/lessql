@@ -10,7 +10,7 @@ composer require morris/lessql
 ```
 
 
-## Database
+## Context
 
 LessQL works on existing MySQL, PostgreSQL or SQLite3 databases.
 
@@ -28,12 +28,12 @@ You can use [LessQL Runners](runners.md) to generate your database.
 
 ## Setup
 
-Create a `PDO` instance and a `LessQL\Database` using it.
+Create a `PDO` instance and a `LessQL\Context` using it.
 We will also need a few hints about our database so we define them at setup.
 
 ```php
 $pdo = new \PDO( 'sqlite:blog.sqlite3' );
-$db = new \LessQL\Database( $pdo );
+$db = new \LessQL\Context( $pdo );
 
 $db->setAlias( 'author', 'user' );
 $db->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
@@ -41,7 +41,7 @@ $db->setPrimary( 'categorization', array( 'category_id', 'post_id' ) );
 
 We define `author` to be a table alias for `user`
 and a compound primary key for the `categorization` table.
-See the [Conventions](conventions.md) section
+See the [Structure](structure.md) section
 for more information about schema hints.
 
 
@@ -193,4 +193,4 @@ First, `author_id` must be nullable.
 Second, the database must know about the compound primary key of the `categorization` table.
 
 Always define required columns and compound primary keys at setup.
-See [Conventions](conventions.md) for more details.
+See [Structure](structure.md) for more details.
