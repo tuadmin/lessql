@@ -2,11 +2,12 @@
 
 By design, statements in LessQL are always bound to a context.
 Each statement will be executed at most once in its context,
-with the result cached inside the context.
+with the result being cached inside the context.
 The result cache is then used in eager loading.
 
 There are cases where you need to execute a statement multiple times
-or LessQL fetches too many objects because of eager loading.
+or you want to fetch objects in isolation,
+e.g. when too many objects are eagerly loaded.
 Use `$context->clear()` to clone the context with an empty cache:
 
 ```php

@@ -220,8 +220,35 @@ which may be in sync with the database or not.
 
 ## SQL Statements and Fragments
 
-TODO
+See [SQL Writing](sql.md) for usage.
 
-## Results
+```php
+// create an object representing an SQL fragment with params
+$sql = $db( $sqlFragment );
+$sql = $db( $sqlFragment, $params );
+$sql = $db->createSQL( $sqlFragment, $params );
 
-TODO
+// bind params
+$sql = $sql->bind( 'paramName', $value );
+$sql = $sql->bind( $intOffset, $value );
+$sql = $sql->bind( array(
+    'paramName' => $value,
+    $intOffset => $value,
+    // ...
+) );
+
+// prepare statement
+$sql = $sql->prepare();
+
+$affected = $sql->affected();
+
+// execute
+$result = $sql->exec();
+
+// get rows
+$row = $sql->first();
+
+foreach ( $sql as $row ) {
+    // ...
+}
+```
