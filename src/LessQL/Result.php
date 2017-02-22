@@ -3,6 +3,8 @@
 namespace LessQL;
 
 /**
+ * @author fork Tuadmin
+ * @version 1.0
  * Represents a filtered table result.
  *
  *  SELECT
@@ -128,7 +130,22 @@ class Result implements \IteratorAggregate, \JsonSerializable {
 		return $clone;
 
 	}
-
+	//tuadmin function
+	/**
+	 * Execute the select query defined by this result.
+	 *
+	 * @return \PDOStatement
+	 */
+	function stmt(){
+		return $this->db->select( $this->table, array(
+			'expr' => $this->select,
+			'where' => $this->where,
+			'orderBy' => $this->orderBy,
+			'limitCount' => $this->limitCount,
+			'limitOffset' => $this->limitOffset,
+			'params' => $this->whereParams
+		) );
+	}
 	/**
 	 * Execute the select query defined by this result.
 	 *
